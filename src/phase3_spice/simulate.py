@@ -85,21 +85,33 @@ def _run_ngspice(netlist: str) -> str:
         f.write(netlist)
         netlist_path = f.name
 
+    # Output file path (ngspice on Windows doesn't output to stdout)
+    out_path = netlist_path.replace(".cir", ".out")
+
     try:
         if not ngspice_path:
             return ("NGSPICE_NOT_FOUND: Ngspice not found. Download from:\n"
                     "  https://sourceforge.net/projects/ngspice/files/ng-spice-rework/43/ngspice-43_64.zip\n"
                     "  Extract to E:\\ngspice and add E:\\ngspice\\bin to PATH")
         result = subprocess.run(
-            [ngspice_path, "-b", netlist_path],
+            [ngspice_path, "-b", "-o", out_path, netlist_path],
             capture_output=True, text=True, timeout=30
         )
-        return result.stdout + "\n" + result.stderr
+        # Read the output file if it exists
+        output = result.stdout + "\n" + result.stderr
+        if os.path.isfile(out_path):
+            with open(out_path, encoding="utf-8", errors="replace") as of:
+                output += "\n" + of.read()
+        return output.strip() or output
     except subprocess.TimeoutExpired:
         return "SIMULATION_TIMEOUT: Simulation took too long (possible convergence issue)"
     finally:
         try:
             os.unlink(netlist_path)
+        except OSError:
+            pass
+        try:
+            os.unlink(out_path)
         except OSError:
             pass
 
