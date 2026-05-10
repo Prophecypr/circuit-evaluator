@@ -50,20 +50,51 @@ SPICE Netlist:
 如果仿真失败，issues_found中说明可能原因。"""
 
 
+def _find_ngspice() -> str | None:
+    """Find ngspice executable in common locations. Returns path or None."""
+    import shutil
+    # Check PATH first
+    found = shutil.which("ngspice")
+    if found:
+        return found
+    # Check common install locations
+    candidates = [
+        "E:/ngspice/bin/ngspice.exe",
+        "E:/ngspice/Spice64/bin/ngspice.exe",
+        "C:/Program Files/ngspice/bin/ngspice.exe",
+        "C:/Program Files (x86)/ngspice/bin/ngspice.exe",
+        "C:/Spice64/bin/ngspice.exe",
+        "C:/Spice/bin/ngspice.exe",
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def is_ngspice_available() -> bool:
+    """Check if ngspice is installed and accessible."""
+    return _find_ngspice() is not None
+
+
 def _run_ngspice(netlist: str) -> str:
     """Run ngspice with the given netlist, return stdout."""
+    ngspice_path = _find_ngspice()
+
     with tempfile.NamedTemporaryFile(mode="w", suffix=".cir", delete=False, encoding="utf-8") as f:
         f.write(netlist)
         netlist_path = f.name
 
     try:
+        if not ngspice_path:
+            return ("NGSPICE_NOT_FOUND: Ngspice not found. Download from:\n"
+                    "  https://sourceforge.net/projects/ngspice/files/ng-spice-rework/43/ngspice-43_64.zip\n"
+                    "  Extract to E:\\ngspice and add E:\\ngspice\\bin to PATH")
         result = subprocess.run(
-            ["ngspice", "-b", netlist_path],
+            [ngspice_path, "-b", netlist_path],
             capture_output=True, text=True, timeout=30
         )
         return result.stdout + "\n" + result.stderr
-    except FileNotFoundError:
-        return "NGSPICE_NOT_FOUND: Ngspice is not installed. Install from https://ngspice.sourceforge.io/"
     except subprocess.TimeoutExpired:
         return "SIMULATION_TIMEOUT: Simulation took too long (possible convergence issue)"
     finally:

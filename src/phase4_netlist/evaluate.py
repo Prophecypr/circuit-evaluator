@@ -235,6 +235,73 @@ def evaluate_and_print(description: str, model: str = "claude-sonnet-4-6") -> di
     return result
 
 
+# -- Simulation-Enhanced Evaluation (Phase 4.5) --
+
+SIM_EVAL_PROMPT = """评价以下电路。以下是SPICE仿真结果，请基于实际仿真数据做出准确判断：
+
+电路描述:
+{description}
+
+SPICE网表:
+{netlist}
+
+仿真输出:
+{simulation_output}
+
+请评价（按以下JSON格式输出）：
+{{
+  "overall_score": <0-100>,
+  "simulation_ok": true/false,
+  "node_voltages": {{"<节点>": <电压(V)>}},
+  "fatal_errors": [
+    {{"type": "short_circuit|open_circuit|reverse_polarity|other", "severity": "critical", "description": "<说明>"}}
+  ],
+  "correctness_issues": [
+    {{"type": "missing_component|wrong_topology|wrong_value", "severity": "major|minor", "description": "<说明>", "suggestion": "<建议>"}}
+  ],
+  "quality_issues": [
+    {{"type": "parameter_suboptimal|efficiency|robustness|cost", "severity": "minor|suggestion", "description": "<说明>", "suggestion": "<建议>"}}
+  ],
+  "summary": "<50字总结>"
+}}
+如果某类问题不存在，对应数组留空 []。不要输出其他内容。"""
+
+
+def evaluate_with_simulation(description: str, model: str = "claude-sonnet-4-6") -> dict:
+    """Phase 4.5: Netlist + actual SPICE simulation + LLM interpretation.
+
+    Runs ngspice if available, falls back to LLM-only if not.
+    """
+    from src.phase3_spice.simulate import _run_ngspice, _find_ngspice
+
+    # Step 1: Generate netlist
+    netlist = generate_netlist_from_description(description, model=model)
+
+    # Step 2: Try actual simulation
+    ngspice_path = _find_ngspice()
+    if ngspice_path:
+        sim_output = _run_ngspice(netlist)
+        if "NGSPICE_NOT_FOUND" not in sim_output:
+            # Simulation succeeded or gave meaningful error
+            prompt = SIM_EVAL_PROMPT.format(
+                description=description[:2000],
+                netlist=netlist,
+                simulation_output=sim_output[:3000],
+            )
+            response = ask(prompt, system=EVAL_FROM_NETLIST_SYSTEM, model=model)
+            import json
+            from src.llm import extract_json
+            json_str = extract_json(response)
+            result = json.loads(json_str)
+            result["_simulation_used"] = True
+            return result
+
+    # Fallback: LLM-only evaluation from netlist
+    result = evaluate_from_netlist(description, model=model)
+    result["_simulation_used"] = False
+    return result
+
+
 if __name__ == "__main__":
     from pathlib import Path
     import sys
