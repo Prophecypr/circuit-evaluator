@@ -35,8 +35,8 @@ def ask(prompt: str, system: str = "", model: str | None = None) -> str:
     resp = client.chat.completions.create(
         model=model,
         messages=messages,
-        max_tokens=4096,
-        temperature=0.1,
+        max_tokens=2048,
+        temperature=0.0,
     )
     return resp.choices[0].message.content or ""
 
