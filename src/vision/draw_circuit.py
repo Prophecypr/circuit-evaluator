@@ -246,7 +246,7 @@ def draw_transistor_amp(r1="100kΩ", r2="10kΩ", re="1kΩ"):
 
 def save_with_yolo(d: CircuitDrawing, name: str, folder: str, description: str = ""):
     """Save image + YOLO label + description."""
-    img_dir = Path(f"data/images/{folder}")
+    img_dir = Path(f"E:/circuit_data/images/{folder}")
     img_dir.mkdir(parents=True, exist_ok=True)
 
     img_path = img_dir / f"{name}.png"
@@ -317,13 +317,13 @@ def generate_full_dataset():
     print(f"  Validation: {val_count} images generated")
 
     # YAML config
-    yaml = f"""path: {Path('data/images').absolute().as_posix()}
-train: train
-val: val
+    yaml = f"""path: E:/circuit_data
+train: images/train
+val: images/val
 nc: 9
 names: {CLASSES}
 """
-    Path("data/images/circuit_dataset.yaml").write_text(yaml)
+    Path("E:/circuit_data/circuit_dataset.yaml").write_text(yaml)
     print(f"  Config: data/images/circuit_dataset.yaml")
     print(f"\nTotal: {total} train + {val_count} val = {total + val_count} images")
 

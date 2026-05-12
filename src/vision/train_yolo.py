@@ -5,21 +5,21 @@ from pathlib import Path
 
 
 def train():
-    data_yaml = Path("data/images/circuit_dataset.yaml").absolute().as_posix()
+    data_yaml = "E:/circuit_data/circuit_dataset.yaml"
 
     # Start from YOLOv8 nano pretrained weights
     model = YOLO("yolov8n.pt")
 
     results = model.train(
         data=data_yaml,
-        epochs=50,
-        imgsz=640,
-        batch=8,
+        epochs=20,
+        imgsz=320,
+        batch=4,
         name="circuit_detector",
         exist_ok=True,
-        device="cpu",  # Use CPU (no GPU on this machine)
-        workers=2,
-        patience=10,   # Early stopping if no improvement for 10 epochs
+        device="cpu",
+        workers=1,
+        patience=5,
         verbose=True,
     )
 
