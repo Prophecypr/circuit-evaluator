@@ -1,0 +1,37 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+.env
+.claude/
+
+# Large data directories
+data/Netlistify/
+data/ocr_training/
+data/ocr_machine/
+
+# Model weights (too large for GitHub)
+runs/
+
+# Test images (too large for GitHub)
+images_C-*.jpg
+images_C-*_wired.jpg
+images_C-*_result.txt
+text*.jpg
+text*_wired.jpg
+text*_result.txt
+*.jpg
+*.png
+
+# Generated outputs
+*_wired.jpg
+*_v2_wired.jpg
+*_result.txt
+*_v2_result.txt
+circuit0.sp
+ocr_corrections.json
+
+# Test images (keep source, exclude generated)
+# test*.jpg and circuit_*.jpg are input images - keep them
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
