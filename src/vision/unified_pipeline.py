@@ -25,7 +25,7 @@ pytesseract.pytesseract.tesseract_cmd = r"E:\Tesseract-OCR\tesseract.exe"
 MODELS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                           "runs", "detect")
 
-CGH_SKIP = {"text", "junction", "crossover", "terminal", "probe.current", "probe.voltage"}
+CGH_SKIP = {"junction", "crossover", "terminal", "probe.current", "probe.voltage"}
 CGH_CONF_THRESH = 0.40
 JUNCTION_CONF = 0.10
 PORT_JUNCTION_RADIUS = 300
@@ -353,28 +353,19 @@ def add_correction(ocr_text, correct_value):
 # Lazy model loading
 # ---------------------------------------------------------------------------
 _CGH_MODEL = None
-_TEXT_MODEL = None  # HCD circuit_text model (CRNN trained on its crops)
 _OCR_MODEL = None
 _OCR_CHARS = ""
 _OCR_ITOC = {}
 _OCR_IMG_H = 32
 
 def _load_models():
-    global _CGH_MODEL, _TEXT_MODEL, _OCR_MODEL, _OCR_CHARS, _OCR_ITOC, _OCR_IMG_H
+    global _CGH_MODEL, _OCR_MODEL, _OCR_CHARS, _OCR_ITOC, _OCR_IMG_H
     if _CGH_MODEL is None:
         cghd_path = os.path.join(MODELS_DIR, "cghd_61cls", "weights", "best.pt")
         if not os.path.isfile(cghd_path):
             raise FileNotFoundError(f"CGHD model not found: {cghd_path}")
         _CGH_MODEL = YOLO(cghd_path)
         print(f"YOLO: CGHD 61-class loaded ({len(_CGH_MODEL.names)} classes)")
-
-    if _TEXT_MODEL is None:
-        text_path = os.path.join(MODELS_DIR, "circuit_text", "weights", "best.pt")
-        if os.path.isfile(text_path):
-            _TEXT_MODEL = YOLO(text_path)
-            print(f"YOLO: HCD text model loaded")
-        else:
-            _TEXT_MODEL = _CGH_MODEL  # fallback to CGHD text detection
 
     if _OCR_MODEL is None:
         _OCR_MODEL, _OCR_CHARS, _, _OCR_ITOC, _OCR_IMG_H = load_trained_model("runs/ocr_crnn_machine/best.pt")
@@ -1026,10 +1017,11 @@ def process_image(img_path):
     grid_snap = max(5, int(GRID_SNAP_TOL * im_scale))
     uf_merge_t = max(5, int(UF_MERGE_TOL * im_scale))
 
-    # ---- Step 1: Detect components + junctions from CGHD ----
+    # ---- Step 1: Detect components + junctions + text from CGHD ----
     results = cgh_model(img_path)[0]
     components = []
     junctions_raw = []
+    text_bboxes = []  # CGHD's own text detections for OCR
 
     for box in (results.boxes or []):
         name = cgh_model.names[int(box.cls[0])]
@@ -1038,6 +1030,12 @@ def process_image(img_path):
         if name in ("junction", "terminal") and conf >= JUNCTION_CONF:
             x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
             junctions_raw.append(((x1 + x2) // 2, (y1 + y2) // 2))
+            continue
+
+        # Collect CGHD text detections for OCR (not added to components)
+        if name == "text" and conf >= CGH_CONF_THRESH:
+            x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+            text_bboxes.append((x1, y1, x2, y2, conf))
             continue
 
         if name in CGH_SKIP or conf < CGH_CONF_THRESH:
@@ -1159,13 +1157,8 @@ def process_image(img_path):
             c["raw_name"] = "voltage.ac"
             print(f"    Auto-correct: {c['designator']} V-DC→V-AC (no GND)")
 
-    # ---- Step 2: OCR text values ----
-    # Get text detections using HCD circuit_text model (CRNN trained on its crops)
-    text_results = _TEXT_MODEL(img_path)[0]
-    comp_bboxes = [(c["xyxy"][0], c["xyxy"][1], c["xyxy"][2], c["xyxy"][3]) for c in components]
-
+    # ---- Step 2: OCR text values (using CGHD text detections) ----
     def inside_gnd_only(tx1, ty1, tx2, ty2):
-        """Check if text bbox is inside a GND symbol (GND has no text value)."""
         for c in components:
             if c["name"] == "GND":
                 cx1, cy1, cx2, cy2 = c["xyxy"]
@@ -1178,25 +1171,20 @@ def process_image(img_path):
         return False
 
     text_values = []
-    for box in (text_results.boxes or []):
-        name = _TEXT_MODEL.names[int(box.cls[0])]
-        if name not in ("text", "value"):
-            continue
-        x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+    for x1, y1, x2, y2, conf in text_bboxes:
         if inside_gnd_only(x1, y1, x2, y2):
-            continue  # skip text inside GND symbol
+            continue
         crop = gray[y1:y2, x1:x2]
         if crop.size == 0:
             continue
         raw = crnn_predict(_OCR_MODEL, crop, _OCR_CHARS, _OCR_ITOC, _OCR_IMG_H)
         raw = _clean_ocr(raw)
-        # Apply known OCR corrections from memory
         corrections = _load_corrections()
         raw = _apply_corrections(raw, corrections)
         if raw:
             text_values.append(dict(
                 text=raw, cx=(x1 + x2) // 2, cy=(y1 + y2) // 2,
-                xyxy=(x1, y1, x2, y2), conf=float(box.conf[0])
+                xyxy=(x1, y1, x2, y2), conf=conf
             ))
 
     print(f"  OCR texts: {len(text_values)}")
@@ -1368,47 +1356,8 @@ def process_image(img_path):
     jid_map = {j: f"J{i+1}" for i, j in enumerate(junctions)}
     print(f"  Junctions: {len(junctions)} (raw: {len(junctions_raw)})")
 
-    # ---- Step 5b: Wire intersection points from CI2N jumper model ----
-    wire_bboxes = []  # cached wire segments for JJ validation
-    try:
-        _JUMPER_MODEL = None
-        jumper_path = os.path.join(MODELS_DIR, "..", "segment", "jumper_wire", "weights", "best.pt")
-        if os.path.isfile(jumper_path):
-            _JUMPER_MODEL = YOLO(jumper_path)
-            jumper_results = _JUMPER_MODEL(img_path, verbose=False)[0]
-            if jumper_results.boxes is not None and len(jumper_results.boxes) > 0:
-                # Extract wire bboxes (also save for JJ validation)
-                wire_centers = []
-                for box in jumper_results.boxes:
-                    x1, y1, x2, y2 = map(float, box.xyxy[0].tolist())
-                    bw, bh = x2 - x1, y2 - y1
-                    if max(bw, bh) > 20:  # filter tiny detections
-                        wire_centers.append(((x1+x2)/2, (y1+y2)/2, x1, y1, x2, y2))
-                        wire_bboxes.append((x1, y1, x2, y2))
-                # Find intersections: overlapping bbox centers (<30px apart)
-                wire_junctions = []
-                for i in range(len(wire_centers)):
-                    for j in range(i+1, len(wire_centers)):
-                        cx1, cy1, wx11, wy11, wx12, wy12 = wire_centers[i]
-                        cx2, cy2, wx21, wy21, wx22, wy22 = wire_centers[j]
-                        d = math.hypot(cx1-cx2, cy1-cy2)
-                        if d < 30:
-                            # Check if bboxes actually cross
-                            ox1, oy1 = max(wx11, wx21), max(wy11, wy21)
-                            ox2, oy2 = min(wx12, wx22), min(wy12, wy22)
-                            if ox2 > ox1 and oy2 > oy1:
-                                mx, my = (cx1+cx2)/2, (cy1+cy2)/2
-                                wire_junctions.append((int(mx), int(my)))
-                if wire_junctions:
-                    # Merge with existing junctions
-                    junctions_raw.extend(wire_junctions)
-                    junctions_snapped = snap(junctions_raw, grid_snap)
-                    merge_map = uf_merge(junctions_snapped, uf_merge_t)
-                    junctions = sorted(set(merge_map.values()), key=lambda p: (p[1], p[0]))
-                    jid_map = {j: f"J{i+1}" for i, j in enumerate(junctions)}
-                    print(f"  Junctions (after CI2N wire): {len(junctions)} (+{len(wire_junctions)} wire xings)")
-    except Exception as e:
-        print(f"    Wire detection skipped: {e}")
+    # CI2N wire model removed — insufficient hand-drawn circuit coverage
+    wire_bboxes = []
 
     # ---- Step 5c: Port grid snapping (per 预处理规则) ----
     # Snap port coordinates to common horizontal/vertical lines
