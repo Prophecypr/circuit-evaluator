@@ -476,9 +476,11 @@ def _detect_orientation(img_path, x1, y1, x2, y2, plist):
     h_edges = np.abs(sobel_y).sum()
     is_default_h = abs(plist[0][0] - plist[1][0]) > abs(plist[0][1] - plist[1][1])
     if is_default_h:
-        return h_edges > v_edges * 1.3
-    else:
+        # Default ports are left/right. Rotate if vertical edges dominate (vertical component)
         return v_edges > h_edges * 1.3
+    else:
+        # Default ports are top/bottom. Rotate if horizontal edges dominate (horizontal component)
+        return h_edges > v_edges * 1.3
 
 # ---------------------------------------------------------------------------
 # Grid snap + Union-Find merging
