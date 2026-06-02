@@ -457,30 +457,22 @@ def _detect_ic_ports(img_path, x1, y1, x2, y2, max_ports=4):
 
 
 def _detect_orientation(img_path, x1, y1, x2, y2, plist):
-    img = cv2.imread(img_path)
-    if img is None:
+    """Determine if a 2-pin component needs port rotation based on bbox aspect ratio.
+    Sobel edge detection is unreliable for mixed component types (resistor zigzag vs
+    capacitor plates produce similar edge patterns but need opposite orientation).
+    Aspect ratio is more robust: tall+thin → vertical, wide+short → horizontal.
+    """
+    bw, bh = x2 - x1, y2 - y1
+    if bw <= 0 or bh <= 0:
         return False
-    h, w = img.shape[:2]
-    x1c, y1c = max(0, x1), max(0, y1)
-    x2c, y2c = min(w, x2), min(h, y2)
-    if x2c <= x1c or y2c <= y1c:
-        return False
-    crop = img[y1c:y2c, x1c:x2c]
-    if crop.size == 0:
-        return False
-    if len(crop.shape) == 3:
-        crop = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-    sobel_x = cv2.Sobel(crop, cv2.CV_64F, 1, 0, ksize=3)
-    sobel_y = cv2.Sobel(crop, cv2.CV_64F, 0, 1, ksize=3)
-    v_edges = np.abs(sobel_x).sum()
-    h_edges = np.abs(sobel_y).sum()
     is_default_h = abs(plist[0][0] - plist[1][0]) > abs(plist[0][1] - plist[1][1])
+    ratio = bh / max(bw, 1)
     if is_default_h:
-        # Default ports are left/right. Rotate if vertical edges dominate (vertical component)
-        return v_edges > h_edges * 1.3
+        # Default ports left/right. Rotate if component is vertical (tall >> wide)
+        return ratio > 1.3
     else:
-        # Default ports are top/bottom. Rotate if horizontal edges dominate (horizontal component)
-        return h_edges > v_edges * 1.3
+        # Default ports top/bottom. Rotate if component is horizontal (wide >> tall)
+        return ratio < 0.77
 
 # ---------------------------------------------------------------------------
 # Grid snap + Union-Find merging
