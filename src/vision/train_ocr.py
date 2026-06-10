@@ -19,15 +19,15 @@ from torch.utils.data import Dataset, DataLoader
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-DATA_DIR = Path("data/ocr_training")
+DATA_DIR = Path("data/cghd_text")
 BATCH_SIZE = 64
 IMG_H = 32          # resize all crops to this height
 IMG_W = 128         # max width after resize
-EPOCHS = 20
+EPOCHS = 30
 LR = 0.0005  # lower LR for continued training
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 PRINT_EVERY = 1
-RESUME = True  # load best.pt and continue training
+RESUME = False  # train from scratch on CGHD text data
 
 # ---------------------------------------------------------------------------
 # Character mapping
@@ -133,15 +133,17 @@ class CRNN(nn.Module):
             nn.Conv2d(256, 256, 3, padding=1), nn.BatchNorm2d(256), nn.ReLU(),
             nn.MaxPool2d((2, 1), (2, 1)),                         # 256 x H/8 x W/4
             nn.Conv2d(256, 512, 3, padding=1), nn.BatchNorm2d(512), nn.ReLU(),
+            nn.Conv2d(512, 512, 3, padding=1), nn.BatchNorm2d(512), nn.ReLU(),
             nn.MaxPool2d((2, 1), (2, 1)),                         # 512 x H/16 x W/4
+            nn.AdaptiveAvgPool2d((1, None)),                       # collapse H to 1
         )
 
-        # Calculate CNN output feature size
-        self.cnn_out_h = input_h // 16  # 32/16 = 2
+        # CNN output H=1 after AdaptiveAvgPool2d
+        self.cnn_out_h = 1
         self.cnn_out_c = 512 * self.cnn_out_h
 
         # BiLSTM sequence modeling
-        self.lstm = nn.LSTM(self.cnn_out_c, 256, num_layers=2,
+        self.rnn = nn.LSTM(self.cnn_out_c, 256, num_layers=2,
                            batch_first=True, bidirectional=True, dropout=0.2)
         self.fc = nn.Linear(512, num_classes)  # 256*2 (bidirectional)
 
@@ -151,8 +153,8 @@ class CRNN(nn.Module):
         # Reshape: (B, C*H, W) → (B, W, C*H)
         B, C, H, W = features.shape
         features = features.reshape(B, C * H, W).permute(0, 2, 1)  # (B, W, C*H)
-        lstm_out, _ = self.lstm(features)  # (B, W, 512)
-        logits = self.fc(lstm_out)  # (B, W, num_classes)
+        rnn_out, _ = self.rnn(features)  # (B, W, 512)
+        logits = self.fc(rnn_out)  # (B, W, num_classes)
         return logits  # (B, T, C) for CTC loss
 
 

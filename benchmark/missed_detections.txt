@@ -1,0 +1,18 @@
+# CGHD YOLO 漏检记录
+
+img_014.jpg: B6 左边有一个三极管未识别 (B4=[2563,812,2660,976], B6=[1862,1620,1955,1766])
+
+img_017.jpg: YOLO 零个电压源 — O1 O4 的 V+/V- 所有电源(+12V等)和部分GND漏检
+  检测到: G11(1829,2194) G14(971,786) G16(1900,240) — 无 battery/voltage.dc/voltage.ac
+  O1=[3049,806,3242,1013] V+在上 V-在下
+  O4=[757,813,957,1067] V+在上 V-在下
+
+img_018.jpg: 漏检1个电容 capacitor.unpolarized conf=0.32 @ [2098,606,2164,739] (低于0.40阈值)
+  O1=[3401,1280,3693,1565] O3=[2404,1319,2645,1575] — V+/V-电源(电压源)完全漏检
+
+=== DHCD 图片 ===
+img_041.jpg: YOLO零电流源 — probe.current(conf=0.41)被CGH_SKIP过滤; motor同位置误检
+img_048.jpg: 零个resistor! 4个电感可能部分误检; resistor.photo conf=0.30 @ [1724,1176]被过滤; capacitor.polarized conf=0.36 @ [870,1553]被过滤; DHCD画风YOLO泛化差
+img_056.jpg: 电压源部分漏检 (JSON已有V2/V6/V7)
+img_057.jpg: 漏检1个 voltage.dc conf=0.33 (低于0.40阈值); JSON已有V5/V6/V7
+img_059.jpg: 漏检1个 voltage.dc conf=0.29 @ [290,317,362,393] (低于0.40阈值); 其余零电源

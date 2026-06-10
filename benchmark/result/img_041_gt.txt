@@ -1,0 +1,10 @@
+G1: M11.2, G6.GND
+G2: M11.1, F4.D, F5.D, Z1.-
+G3: F4.S, F9.D
+G4: F4.G, F8.G
+G5: F8.D, F9.S, R7.1
+G6: R7.2, F10.D, F2.S
+G7: F2.G, L12.1
+G8: L12.2, G3.GND, F8.S, F10.S
+G9: F2.D, F5.S
+G10: F5.G, Z1.+, F9.G
