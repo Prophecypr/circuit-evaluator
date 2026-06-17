@@ -20,7 +20,11 @@ text*.jpg
 text*_wired.jpg
 text*_result.txt
 *.jpg
+*.jpeg
+*.JPG
+*.JPEG
 *.png
+*.PNG
 
 # Generated outputs
 *_wired.jpg

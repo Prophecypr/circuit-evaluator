@@ -7,8 +7,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.vision.unified_pipeline import _load_models
 
-BENCHMARK = Path("benchmark")
-OUTPUT = BENCHMARK / "detections"
+PICTURE = Path("picture")
+OUTPUT = PICTURE / "detections"
 OUTPUT.mkdir(exist_ok=True)
 
 CGH_SKIP = {"junction", "crossover", "text", "probe.current", "probe.voltage", "explanatory"}
@@ -55,6 +55,7 @@ PORT_POSITIONS = {
     "Relay": [(0, 0.5), (1, 0.5), (0.5, 0.0), (0.5, 1.0)],
     "Thyristor": [(0, 0.5), (1, 0.5)],
     "Motor": [(0, 0.5), (1, 0.5)],
+    "Transformer": [(0, 0.2), (0, 0.8), (1, 0.2), (1, 0.8)],
 }
 PORT_LABELS = {
     "Resistor": ["1", "2"], "Potentiometer": ["1", "2", "W"],
@@ -73,6 +74,7 @@ PORT_LABELS = {
     "Relay": ["C1", "C2", "NO", "COM"],
     "Thyristor": ["A", "K"],
     "Motor": ["1", "2"],
+    "Transformer": ["P1", "P2", "S1", "S2"],
 }
 
 print("Loading models...")
@@ -118,12 +120,20 @@ def detect_orientation(img_path, x1, y1, x2, y2, plist, raw_name=""):
         if is_default_h: return ratio > 1.3
         return ratio < 0.77
 
-manifest = BENCHMARK / "manifest.txt"
-with open(manifest) as f:
-    images = [line.strip().split("\t")[0] for line in f if line.strip()]
+manifest = PICTURE / "manifest.txt"
+if manifest.exists():
+    with open(manifest) as f:
+        images = [line.strip().split("\t")[0] for line in f if line.strip()]
+else:
+    # auto-scan picture/ for image files
+    images = sorted([
+        p.name for p in PICTURE.iterdir()
+        if p.suffix.lower() in ('.jpg', '.jpeg', '.png')
+    ])
+    print(f"  No manifest.txt, auto-scanned {len(images)} images")
 
 for i, img_name in enumerate(images):
-    img_path = str(BENCHMARK / img_name)
+    img_path = str(PICTURE / img_name)
     img = cv2.imread(img_path)
     if img is None:
         print(f"  SKIP {img_name}: cannot read")
