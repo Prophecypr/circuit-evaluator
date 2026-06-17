@@ -36,6 +36,16 @@ JJ_MAX_ALIGNED_DIST = 1000  # max distance for aligned junction pairs (crosses+w
 GRID_SNAP_TOL = 5
 UF_MERGE_TOL = 8
 
+# Ablation experiment config (all True = full algorithm)
+DEFAULT_CONFIG = {
+    "use_skeleton": True, "use_degree_constraint": False,
+    "use_nn_filter": True, "use_skel_jj": True,
+    "use_sobel": True, "use_close_port": True,
+    "use_force_connect": True, "use_los": True,
+    "use_ccl": False,
+    "skip_llm": False,
+}
+
 # CGHD → HCD name mapping
 CGH_NAME_MAP = {
     "resistor": "Resistor", "capacitor.unpolarized": "Capacitor",
@@ -447,7 +457,7 @@ def _detect_ic_ports(img_path, x1, y1, x2, y2, max_ports=4):
     return ports
 
 
-def _detect_orientation(img_path, x1, y1, x2, y2, plist, raw_name=""):
+def _detect_orientation(img_path, x1, y1, x2, y2, plist, raw_name="", use_sobel=True):
     """Determine if a 2-pin component needs port rotation.
 
     Capacitors & LEDs: use Sobel edge detection on the cropped image.
@@ -455,6 +465,7 @@ def _detect_orientation(img_path, x1, y1, x2, y2, plist, raw_name=""):
       - Capacitor: plates are parallel lines. If plates are horizontal (=) -> rotate.
       - LED: has diode triangle + arrows. If vertical (arrows sideways) -> rotate.
     Other components: use bbox aspect ratio (bh/bw > 1.3 -> rotate).
+    When use_sobel=False: pure aspect-ratio logic for all components.
     """
     bw, bh = x2 - x1, y2 - y1
     if bw <= 0 or bh <= 0:
@@ -463,7 +474,7 @@ def _detect_orientation(img_path, x1, y1, x2, y2, plist, raw_name=""):
     is_cap = "capacitor" in raw_name.lower() if raw_name else False
     is_led = "light_emitting" in raw_name.lower() if raw_name else False
 
-    if (is_cap or is_led) and is_default_h:
+    if (is_cap or is_led) and is_default_h and use_sobel:
         # Default ports left/right. Use Sobel to check if component is actually vertical.
         img = cv2.imread(img_path)
         if img is not None:
@@ -490,7 +501,7 @@ def _detect_orientation(img_path, x1, y1, x2, y2, plist, raw_name=""):
             return ratio < 0.8  # wide -> vertical -> rotate
         else:
             return ratio > 2.5  # very tall -> vertical -> rotate
-    elif is_cap:
+    elif is_cap and use_sobel:
         # Default ports top/bottom (rare). Detect if need to rotate back.
         img = cv2.imread(img_path)
         if img is not None:
@@ -879,6 +890,84 @@ def _extract_skeleton(gray_img, max_dim=800):
         skeleton = cv2.resize(skeleton, (orig_w, orig_h), interpolation=cv2.INTER_NEAREST)
     return skeleton
 
+def _snap_ports_to_skeleton(components, skeleton, search_radius=15):
+    """改进1: Snap each port to the nearest skeleton endpoint.
+
+    For each component port, search the skeleton image in a radius.
+    If a skeleton endpoint (exactly 1 skeleton neighbor) is found nearby,
+    replace the port coordinate with the endpoint position.
+    If an internal skeleton point (2+ neighbors) is found, trace outward
+    along the skeleton to the nearest endpoint.
+
+    This fixes the ~10-20px offset between hardcoded PORT_POSITIONS and
+    actual wire attachment points in hand-drawn circuits.
+    """
+    if skeleton is None:
+        return 0
+    h, w = skeleton.shape
+
+    def _count_neighbors(sk, y, x):
+        n = 0
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                if dy == 0 and dx == 0:
+                    continue
+                ny, nx = y + dy, x + dx
+                if 0 <= ny < h and 0 <= nx < w and sk[ny, nx] > 0:
+                    n += 1
+        return n
+
+    def _trace_to_endpoint(sk, y, x, max_steps=30):
+        """BFS along skeleton outward from (y,x) to nearest endpoint."""
+        visited = {(y, x)}
+        q = [(y, x)]
+        for _ in range(max_steps):
+            if not q:
+                break
+            cy, cx = q.pop(0)
+            nn = _count_neighbors(sk, cy, cx)
+            if nn == 1 and (cy != y or cx != x):
+                return (cy, cx)  # found endpoint
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    if dy == 0 and dx == 0:
+                        continue
+                    ny, nx = cy + dy, cx + dx
+                    if 0 <= ny < h and 0 <= nx < w and sk[ny, nx] > 0 and (ny, nx) not in visited:
+                        visited.add((ny, nx))
+                        q.append((ny, nx))
+        return None
+
+    snapped = 0
+    for c in components:
+        for pi, (px, py) in enumerate(c["ports"]):
+            # Search for nearest skeleton pixel within radius
+            best_pt = None
+            best_dist = search_radius ** 2
+            for dy in range(-search_radius, search_radius + 1):
+                for dx in range(-search_radius, search_radius + 1):
+                    sy, sx = py + dy, px + dx
+                    if 0 <= sy < h and 0 <= sx < w and skeleton[sy, sx] > 0:
+                        d2 = dy * dy + dx * dx
+                        if d2 < best_dist:
+                            best_dist = d2
+                            best_pt = (sy, sx)
+            if best_pt is None:
+                continue
+            sy, sx = best_pt
+            nn = _count_neighbors(skeleton, sy, sx)
+            if nn == 1:
+                # Directly use the endpoint
+                c["ports"][pi] = (sx, sy)
+                snapped += 1
+            elif nn >= 2:
+                # Internal skeleton point: trace to nearest endpoint
+                ep = _trace_to_endpoint(skeleton, sy, sx)
+                if ep is not None:
+                    c["ports"][pi] = (ep[1], ep[0])  # (cx, cy) = (x, y)
+                    snapped += 1
+    return snapped
+
 def _trace_wire_connections(skeleton, components, junctions, img_h, img_w,
                              search_radius=10, gap_bridge=8):
     """BFS along skeleton from each port to discover wire-verified connections.
@@ -1174,7 +1263,12 @@ def same_position(c1, c2, tol=10):
 # ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
-def process_image(img_path):
+def process_image(img_path, config=None):
+    if config is None:
+        config = dict(DEFAULT_CONFIG)
+    else:
+        cfg = dict(DEFAULT_CONFIG); cfg.update(config); config = cfg
+
     img_name = os.path.basename(img_path)
     print(f"\n{'='*60}")
     print(f"  {img_name}")
@@ -1240,6 +1334,7 @@ def process_image(img_path):
                          "Schmitt-Trigger", "Optocoupler"}
         IC_MAX_PORTS = {"IC": 5, "NE555": 8, "Voltage-Regulator": 4,
                         "Op-Amp": 5, "Schmitt-Trigger": 5, "Optocoupler": 4}
+        need_rotate = False
         if port_key in IC_PORT_TYPES:
             # Detect actual pin attachment points from image edges
             max_p = IC_MAX_PORTS.get(port_key, 4)
@@ -1254,7 +1349,7 @@ def process_image(img_path):
             # Types that should NEVER rotate (GND always points down)
             no_rotate_types = {"GND", "gnd", "vss"}
             if len(plist) == 2 and name not in no_rotate_types and port_key not in no_rotate_types:
-                need_rotate = _detect_orientation(img_path, x1, y1, x2, y2, plist, name)
+                need_rotate = _detect_orientation(img_path, x1, y1, x2, y2, plist, name, use_sobel=config["use_sobel"])
             else:
                 need_rotate = False
             for rx, ry in plist:
@@ -1537,16 +1632,91 @@ def process_image(img_path):
         val_str = f"= {c['value']}" if c['value'] else ""
         print(f"    {c['designator']:6s} {c['name']:15s} {val_str}")
 
-    # ---- Step 5: Junction processing ----
-    if junctions_raw:
-        junctions_snapped = snap(junctions_raw, grid_snap)
-        merge_map = uf_merge(junctions_snapped, uf_merge_t)
-        junctions = sorted(set(merge_map.values()), key=lambda p: (p[1], p[0]))
-    else:
-        junctions = []
-    # Junction numbering
-    jid_map = {j: f"J{i+1}" for i, j in enumerate(junctions)}
-    print(f"  Junctions: {len(junctions)} (raw: {len(junctions_raw)})")
+    # ---- Step 4b (CCL): Connected Component Analysis wiring ----
+    # When enabled, replaces all junction/P2J/JJ/skeleton steps with a
+    # simpler approach: mask components → dilate wires → CCL → assign ports.
+    if config["use_ccl"]:
+        print("  Wiring: CCL (Connected Component Analysis)")
+        # 1. Binarize: adaptive threshold handles uneven lighting in hand-drawn scans
+        wire_mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                          cv2.THRESH_BINARY_INV, 21, 6)
+        # White-out component INTERIORS only (inset), keep edges visible for ports
+        inset = max(3, int(5 * im_scale))
+        for c in components:
+            x1, y1, x2, y2 = c["xyxy"]
+            mx1 = max(0, x1 + inset); my1 = max(0, y1 + inset)
+            mx2 = min(w, x2 - inset); my2 = min(h, y2 - inset)
+            if mx2 > mx1 and my2 > my1:
+                wire_mask[my1:my2, mx1:mx2] = 0  # black
+
+        # 2. Dilate to bridge hand-drawn gaps
+        k = max(2, int(3 * im_scale))
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
+        wire_mask = cv2.dilate(wire_mask, kernel, iterations=1)
+
+        # 3. Connected component analysis
+        n_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
+            wire_mask, connectivity=8)
+        print(f"    CCL: {n_labels - 1} connected regions found")
+
+        # 4. Assign each port to its closest connected component label
+        port_labels = {}  # (ci, pi) -> label
+        for ci, c in enumerate(components):
+            for pi, (px, py) in enumerate(c["ports"]):
+                px_c = max(0, min(w - 1, px))
+                py_c = max(0, min(h - 1, py))
+                # Sample labels in a small radial search around port
+                r = max(3, int(6 * im_scale))
+                found_labels = []
+                for dy in range(-r, r + 1, 2):
+                    for dx in range(-r, r + 1, 2):
+                        sy, sx = py_c + dy, px_c + dx
+                        if 0 <= sy < h and 0 <= sx < w:
+                            lbl = labels[sy, sx]
+                            if lbl > 0:
+                                found_labels.append(lbl)
+                if found_labels:
+                    # Use most common label
+                    lbl = max(set(found_labels), key=found_labels.count)
+                    port_labels[(ci, pi)] = lbl
+
+        # 5. Build p2j_connections: ports sharing the same label → same net
+        #    Use virtual junction points at centroid of each region
+        p2j_connections = []
+        label_groups = defaultdict(list)
+        for (ci, pi), lbl in port_labels.items():
+            label_groups[lbl].append((ci, pi))
+
+        for lbl, port_list in label_groups.items():
+            if len(port_list) >= 2:
+                cx = int(centroids[lbl][0])
+                cy = int(centroids[lbl][1])
+                for ci, pi in port_list:
+                    p2j_connections.append((ci, pi, cx, cy))
+
+        jj_connections = []
+        junctions = [(int(centroids[l][0]), int(centroids[l][1]))
+                     for l in range(1, n_labels) if l in label_groups
+                     and len(label_groups[l]) >= 2]
+        routes = []
+        print(f"    CCL: {len(p2j_connections)} port connections, {len(junctions)} nets")
+        # Skip to Step 9 (connection graph building)
+        # We need to set these for the code below
+        jp_map = defaultdict(list)
+        for ci, pi, jx, jy in p2j_connections:
+            jp_map[(jx, jy)].append((ci, pi))
+
+    # ---- Step 5: Junction processing (skipped for CCL) ----
+    if not config["use_ccl"]:
+        if junctions_raw:
+            junctions_snapped = snap(junctions_raw, grid_snap)
+            merge_map = uf_merge(junctions_snapped, uf_merge_t)
+            junctions = sorted(set(merge_map.values()), key=lambda p: (p[1], p[0]))
+        else:
+            junctions = []
+        # Junction numbering
+        jid_map = {j: f"J{i+1}" for i, j in enumerate(junctions)}
+        print(f"  Junctions: {len(junctions)} (raw: {len(junctions_raw)})")
 
     # CI2N wire model removed — insufficient hand-drawn circuit coverage
     wire_bboxes = []
@@ -1564,281 +1734,227 @@ def process_image(img_path):
         junctions.sort(key=lambda p: (p[1], p[0]))
 
     # ---- Step 5e: Skeleton-based wire validation ----
-    try:
-        skeleton = _extract_skeleton(gray)
-        # Pre-compute junction branch counts from skeleton
-        _junc_branch_count = {}
-        for jx, jy in junctions:
-            _junc_branch_count[(jx, jy)] = _count_skeleton_branches(skeleton, jx, jy)
-    except Exception:
+    if config["use_skeleton"]:
+        try:
+            skeleton = _extract_skeleton(gray)
+            # Pre-compute junction branch counts from skeleton
+            _junc_branch_count = {}
+            for jx, jy in junctions:
+                _junc_branch_count[(jx, jy)] = _count_skeleton_branches(skeleton, jx, jy)
+        except Exception:
+            skeleton = None
+            _junc_branch_count = {}
+    else:
         skeleton = None
         _junc_branch_count = {}
 
+    # ---- 改进1: Snap ports to skeleton endpoints ----
+    if config["use_skeleton"] and skeleton is not None:
+        n_snapped = _snap_ports_to_skeleton(components, skeleton,
+                                            search_radius=max(10, int(15 * im_scale)))
+        if n_snapped:
+            print(f"  Skeleton port snap: {n_snapped} ports adjusted")
+
     # ---- Step 6: Port → Junction connections ----
-    p2j_connections = []  # [(comp_idx, port_idx, jx, jy)]
-    for ci, c in enumerate(components):
-        for pi, (px, py) in enumerate(c["ports"]):
-            best_j, best_d = None, pjr
-            for jx, jy in junctions:
-                d = math.hypot(px - jx, py - jy)
-                if d < best_d:
-                    if not crosses((px, py), (jx, jy), components, ci):
+    if not config["use_ccl"]:
+        p2j_connections = []  # [(comp_idx, port_idx, jx, jy)]
+        for ci, c in enumerate(components):
+            for pi, (px, py) in enumerate(c["ports"]):
+                best_j, best_d = None, pjr
+                for jx, jy in junctions:
+                    d = math.hypot(px - jx, py - jy)
+                    if d >= pjr:
+                        continue
+                    # 改进2: skeleton-verified priority lock
+                    skel_locked = False
+                    if config["use_skeleton"] and skeleton is not None:
+                        if _verify_skeleton_path(skeleton, px, py, jx, jy,
+                                                 margin=3, min_ratio=0.50):
+                            if not crosses((px, py), (jx, jy), components, ci):
+                                best_j = (jx, jy)
+                                skel_locked = True
+                                break  # skeleton verified → lock immediately
+                    if skel_locked:
+                        break
+                    # Standard distance-based matching (fallback when no skeleton lock)
+                    if d < best_d:
+                        if not crosses((px, py), (jx, jy), components, ci):
+                            best_d = d
+                            best_j = (jx, jy)
+                if best_j:
+                    p2j_connections.append((ci, pi, best_j[0], best_j[1]))
+
+        # Cleanup: remove same-component shorts (both ports of 2-port comp -> same junction)
+        # For 3+ port components: only remove if ALL ports go to same junction
+        p2j_by_comp_junc = defaultdict(list)
+        for idx, (ci, pi, jx, jy) in enumerate(p2j_connections):
+            p2j_by_comp_junc[(ci, jx, jy)].append((idx, pi, math.hypot(
+                components[ci]["ports"][pi][0] - jx,
+                components[ci]["ports"][pi][1] - jy)))
+        remove_idxs = set()
+        for (ci, jx, jy), entries in p2j_by_comp_junc.items():
+            n_ports = len(components[ci]["ports"])
+            if n_ports == 2 and len(entries) >= 2:
+                entries.sort(key=lambda x: x[2])
+                for idx, pi, d in entries[1:]:
+                    remove_idxs.add(idx)
+            elif n_ports >= 3 and len(entries) == n_ports:
+                # All ports of multi-port component go to same junction - remove 2 farthest
+                entries.sort(key=lambda x: x[2])
+                for idx, pi, d in entries[2:]:
+                    remove_idxs.add(idx)
+        if remove_idxs:
+            p2j_connections = [c for i, c in enumerate(p2j_connections) if i not in remove_idxs]
+            print(f"  Port->Junction: {len(p2j_connections)} (removed {len(remove_idxs)} same-comp shorts)")
+        else:
+            print(f"  Port->Junction: {len(p2j_connections)}")
+
+        # ---- Step 6a-skel: Skeleton fallback for truly isolated ports ----
+        # Only extends P2J radius — skeleton connection must land on a YOLO junction
+        if skeleton is not None:
+            connected_now = set((ci, pi) for ci, pi, jx, jy in p2j_connections)
+            all_skel = _trace_wire_connections(
+                skeleton, components, junctions, h, w,
+                search_radius=skel_search, gap_bridge=skel_gap)
+            skel_added = 0
+            junc_set = set((int(jx), int(jy)) for jx, jy in junctions)
+            for s_ci, s_pi, tx, ty in all_skel:
+                if (s_ci, s_pi) in connected_now:
+                    continue
+                # Only accept junction-target connections (not port-to-port)
+                if (int(tx), int(ty)) not in junc_set:
+                    continue
+                px, py = components[s_ci]["ports"][s_pi]
+                min_jd = min((math.hypot(px - jx, py - jy) for jx, jy in junctions), default=99999)
+                # For extreme far ports (>450px), also accept port-to-port skeleton trace
+                if min_jd > pjf and \
+                   ((int(tx), int(ty)) in junc_set or min_jd > pjr * 1.5):
+                    p2j_connections.append((s_ci, s_pi, tx, ty))
+                    skel_added += 1
+            if skel_added:
+                print(f"  Port→Junction (skeleton fallback): +{skel_added}")
+
+        # ---- Step 6b: Direct port→port proximity fallback ----
+        PORT_PORT_MAX = p2p_max
+        # Also match ports on same horizontal/vertical line up to 120px
+        PORT_LINE_MAX = p2p_line
+        for i, ci in enumerate(components):
+            for pi, (px, py) in enumerate(ci["ports"]):
+                already_connected = any(cx == i and px_idx == pi for cx, px_idx, jx, jy in p2j_connections)
+                if already_connected:
+                    continue
+                best_j, best_port, best_dist = None, None, PORT_PORT_MAX
+                for j, cj in enumerate(components):
+                    if j == i:
+                        continue
+                    for pj_idx, (qx, qy) in enumerate(cj["ports"]):
+                        # Prioritize ports on same X or Y line
+                        aligned = abs(px - qx) < 15 or abs(py - qy) < 15
+                        max_d = PORT_LINE_MAX if aligned else PORT_PORT_MAX
+                        d = math.hypot(px - qx, py - qy)
+                        if d < max_d and d < best_dist:
+                            if aligned or not crosses((px, py), (qx, qy), components, i):
+                                best_dist = d
+                                best_j = (qx, qy)
+                                best_port = (j, pj_idx)
+                if best_j:
+                    mx, my = (px + best_j[0]) // 2, (py + best_j[1]) // 2
+                    p2j_connections.append((i, pi, mx, my))
+                    p2j_connections.append((best_port[0], best_port[1], mx, my))
+                    if (mx, my) not in junctions:
+                        junctions.append((mx, my))
+
+        print(f"  Port→Junction (after direct P2P): {len(p2j_connections)}")
+
+        # ---- Step 6c: Second-pass — wider radius for still-isolated ports ----
+        connected_ports = set((ci, pi) for ci, pi, jx, jy in p2j_connections)
+        # Track which (ci, junction) already has a port to avoid same-comp short in fallback
+        comp_junc_used = defaultdict(set)
+        for ci, pi, jx, jy in p2j_connections:
+            comp_junc_used[(ci, jx, jy)].add(pi)
+        second_pass_added = 0
+        for ci, c in enumerate(components):
+            for pi, (px, py) in enumerate(c["ports"]):
+                if (ci, pi) in connected_ports:
+                    continue
+                best_j, best_d = None, pjf
+                for jx, jy in junctions:
+                    d = math.hypot(px - jx, py - jy)
+                    if d < best_d and not crosses((px, py), (jx, jy), components, ci):
+                        # Don't connect both ports of same component to same junction
+                        if len(c["ports"]) == 2:
+                            other_pi = 1 - pi
+                            if other_pi in comp_junc_used.get((ci, jx, jy), set()):
+                                continue
                         best_d = d
                         best_j = (jx, jy)
-            if best_j:
-                p2j_connections.append((ci, pi, best_j[0], best_j[1]))
+                if best_j:
+                    p2j_connections.append((ci, pi, best_j[0], best_j[1]))
+                    connected_ports.add((ci, pi))
+                    comp_junc_used[(ci, best_j[0], best_j[1])].add(pi)
+                    second_pass_added += 1
+        if second_pass_added:
+            print(f"  Port→Junction (fallback pass): +{second_pass_added}")
 
-    # Cleanup: remove same-component shorts (both ports of 2-port comp -> same junction)
-    # For 3+ port components: only remove if ALL ports go to same junction
-    p2j_by_comp_junc = defaultdict(list)
-    for idx, (ci, pi, jx, jy) in enumerate(p2j_connections):
-        p2j_by_comp_junc[(ci, jx, jy)].append((idx, pi, math.hypot(
-            components[ci]["ports"][pi][0] - jx,
-            components[ci]["ports"][pi][1] - jy)))
-    remove_idxs = set()
-    for (ci, jx, jy), entries in p2j_by_comp_junc.items():
-        n_ports = len(components[ci]["ports"])
-        if n_ports == 2 and len(entries) >= 2:
-            entries.sort(key=lambda x: x[2])
-            for idx, pi, d in entries[1:]:
-                remove_idxs.add(idx)
-        elif n_ports >= 3 and len(entries) == n_ports:
-            # All ports of multi-port component go to same junction - remove 2 farthest
-            entries.sort(key=lambda x: x[2])
-            for idx, pi, d in entries[2:]:
-                remove_idxs.add(idx)
-    if remove_idxs:
-        p2j_connections = [c for i, c in enumerate(p2j_connections) if i not in remove_idxs]
-        print(f"  Port->Junction: {len(p2j_connections)} (removed {len(remove_idxs)} same-comp shorts)")
-    else:
-        print(f"  Port->Junction: {len(p2j_connections)}")
-
-    # ---- Step 6a-skel: Skeleton fallback for truly isolated ports ----
-    # Only extends P2J radius — skeleton connection must land on a YOLO junction
-    if skeleton is not None:
-        connected_now = set((ci, pi) for ci, pi, jx, jy in p2j_connections)
-        all_skel = _trace_wire_connections(
-            skeleton, components, junctions, h, w,
-            search_radius=skel_search, gap_bridge=skel_gap)
-        skel_added = 0
-        junc_set = set((int(jx), int(jy)) for jx, jy in junctions)
-        for s_ci, s_pi, tx, ty in all_skel:
-            if (s_ci, s_pi) in connected_now:
-                continue
-            # Only accept junction-target connections (not port-to-port)
-            if (int(tx), int(ty)) not in junc_set:
-                continue
-            px, py = components[s_ci]["ports"][s_pi]
-            min_jd = min((math.hypot(px - jx, py - jy) for jx, jy in junctions), default=99999)
-            # For extreme far ports (>450px), also accept port-to-port skeleton trace
-            if min_jd > pjf and \
-               ((int(tx), int(ty)) in junc_set or min_jd > pjr * 1.5):
-                p2j_connections.append((s_ci, s_pi, tx, ty))
-                skel_added += 1
-        if skel_added:
-            print(f"  Port→Junction (skeleton fallback): +{skel_added}")
-
-    # ---- Step 6b: Direct port→port proximity fallback ----
-    PORT_PORT_MAX = p2p_max
-    # Also match ports on same horizontal/vertical line up to 120px
-    PORT_LINE_MAX = p2p_line
-    for i, ci in enumerate(components):
-        for pi, (px, py) in enumerate(ci["ports"]):
-            already_connected = any(cx == i and px_idx == pi for cx, px_idx, jx, jy in p2j_connections)
-            if already_connected:
-                continue
-            best_j, best_port, best_dist = None, None, PORT_PORT_MAX
-            for j, cj in enumerate(components):
-                if j == i:
+        # ---- Step 6d: Aggressive P2P (always active) ----
+        connected_ports = set((ci, pi) for ci, pi, jx, jy in p2j_connections)
+        AGGRESSIVE_P2P = agg_p2p
+        aggressive_added = 0
+        for ci, c in enumerate(components):
+            for pi, (px, py) in enumerate(c["ports"]):
+                if (ci, pi) in connected_ports:
                     continue
-                for pj_idx, (qx, qy) in enumerate(cj["ports"]):
-                    # Prioritize ports on same X or Y line
-                    aligned = abs(px - qx) < 15 or abs(py - qy) < 15
-                    max_d = PORT_LINE_MAX if aligned else PORT_PORT_MAX
-                    d = math.hypot(px - qx, py - qy)
-                    if d < max_d and d < best_dist:
-                        if aligned or not crosses((px, py), (qx, qy), components, i):
-                            best_dist = d
-                            best_j = (qx, qy)
-                            best_port = (j, pj_idx)
-            if best_j:
-                mx, my = (px + best_j[0]) // 2, (py + best_j[1]) // 2
-                p2j_connections.append((i, pi, mx, my))
-                p2j_connections.append((best_port[0], best_port[1], mx, my))
-                if (mx, my) not in junctions:
-                    junctions.append((mx, my))
+                best_j, best_port, best_dist = None, None, AGGRESSIVE_P2P
+                for cj_idx, cj in enumerate(components):
+                    if cj_idx == ci:
+                        continue
+                    for pj_idx, (qx, qy) in enumerate(cj["ports"]):
+                        aligned = abs(px - qx) < 15 or abs(py - qy) < 15
+                        max_d = PORT_LINE_MAX if aligned else AGGRESSIVE_P2P
+                        d = math.hypot(px - qx, py - qy)
+                        if d < max_d and d < best_dist:
+                            if aligned or not crosses((px, py), (qx, qy), components, ci):
+                                best_dist = d
+                                best_j = (qx, qy)
+                                best_port = (cj_idx, pj_idx)
+                if best_j:
+                    cj_idx = best_port[0]
+                    mx, my = (px + best_j[0]) // 2, (py + best_j[1]) // 2
+                    p2j_connections.append((ci, pi, mx, my))
+                    p2j_connections.append((best_port[0], best_port[1], mx, my))
+                    connected_ports.add((ci, pi))
+                    connected_ports.add(best_port)
+                    if (mx, my) not in junctions:
+                        junctions.append((mx, my))
+                    aggressive_added += 1
+        if aggressive_added:
+            print(f"  Port->Junction (aggressive P2P): +{aggressive_added}")
+        else:
+            print(f"  Aggressive P2P: no connections")
 
-    print(f"  Port→Junction (after direct P2P): {len(p2j_connections)}")
+        # ---- Step 7: Junction -> Junction connections ----
+        # Build temp junction->ports map for JJ validity check
+        jj_port_map = defaultdict(set)
+        jj_port_detail = defaultdict(list)
+        for ci, pi, jx, jy in p2j_connections:
+            jj_port_map[(jx, jy)].add(ci)
+            jj_port_detail[(jx, jy)].append((ci, pi))
 
-    # ---- Step 6c: Second-pass — wider radius for still-isolated ports ----
-    connected_ports = set((ci, pi) for ci, pi, jx, jy in p2j_connections)
-    # Track which (ci, junction) already has a port to avoid same-comp short in fallback
-    comp_junc_used = defaultdict(set)
-    for ci, pi, jx, jy in p2j_connections:
-        comp_junc_used[(ci, jx, jy)].add(pi)
-    second_pass_added = 0
-    for ci, c in enumerate(components):
-        for pi, (px, py) in enumerate(c["ports"]):
-            if (ci, pi) in connected_ports:
-                continue
-            best_j, best_d = None, pjf
-            for jx, jy in junctions:
-                d = math.hypot(px - jx, py - jy)
-                if d < best_d and not crosses((px, py), (jx, jy), components, ci):
-                    # Don't connect both ports of same component to same junction
-                    if len(c["ports"]) == 2:
-                        other_pi = 1 - pi
-                        if other_pi in comp_junc_used.get((ci, jx, jy), set()):
-                            continue
-                    best_d = d
-                    best_j = (jx, jy)
-            if best_j:
-                p2j_connections.append((ci, pi, best_j[0], best_j[1]))
-                connected_ports.add((ci, pi))
-                comp_junc_used[(ci, best_j[0], best_j[1])].add(pi)
-                second_pass_added += 1
-    if second_pass_added:
-        print(f"  Port→Junction (fallback pass): +{second_pass_added}")
+        from collections import Counter
 
-    # ---- Step 6d: Aggressive P2P (always active) ----
-    connected_ports = set((ci, pi) for ci, pi, jx, jy in p2j_connections)
-    AGGRESSIVE_P2P = agg_p2p
-    aggressive_added = 0
-    for ci, c in enumerate(components):
-        for pi, (px, py) in enumerate(c["ports"]):
-            if (ci, pi) in connected_ports:
-                continue
-            best_j, best_port, best_dist = None, None, AGGRESSIVE_P2P
-            for cj_idx, cj in enumerate(components):
-                if cj_idx == ci:
-                    continue
-                for pj_idx, (qx, qy) in enumerate(cj["ports"]):
-                    aligned = abs(px - qx) < 15 or abs(py - qy) < 15
-                    max_d = PORT_LINE_MAX if aligned else AGGRESSIVE_P2P
-                    d = math.hypot(px - qx, py - qy)
-                    if d < max_d and d < best_dist:
-                        if aligned or not crosses((px, py), (qx, qy), components, ci):
-                            best_dist = d
-                            best_j = (qx, qy)
-                            best_port = (cj_idx, pj_idx)
-            if best_j:
-                cj_idx = best_port[0]
-                mx, my = (px + best_j[0]) // 2, (py + best_j[1]) // 2
-                p2j_connections.append((ci, pi, mx, my))
-                p2j_connections.append((best_port[0], best_port[1], mx, my))
-                connected_ports.add((ci, pi))
-                connected_ports.add(best_port)
-                if (mx, my) not in junctions:
-                    junctions.append((mx, my))
-                aggressive_added += 1
-    if aggressive_added:
-        print(f"  Port->Junction (aggressive P2P): +{aggressive_added}")
-    else:
-        print(f"  Aggressive P2P: no connections")
+        # Track connections per junction for degree constraint
+        junc_conn_count = defaultdict(int)
 
-    # ---- Step 7: Junction -> Junction connections ----
-    # Build temp junction->ports map for JJ validity check
-    jj_port_map = defaultdict(set)
-    jj_port_detail = defaultdict(list)
-    for ci, pi, jx, jy in p2j_connections:
-        jj_port_map[(jx, jy)].add(ci)
-        jj_port_detail[(jx, jy)].append((ci, pi))
-
-    from collections import Counter
-
-    # Track connections per junction for degree constraint
-    junc_conn_count = defaultdict(int)
-
-    # Collect all aligned pairs with skeleton verification
-    jj_raw = []  # (dist, jx1, jy1, jx2, jy2)
-    for i in range(len(junctions)):
-        for j in range(i + 1, len(junctions)):
-            jx1, jy1 = junctions[i]
-            jx2, jy2 = junctions[j]
-            comps_1 = jj_port_map.get((jx1, jy1), set())
-            comps_2 = jj_port_map.get((jx2, jy2), set())
-            if comps_1 and comps_2 and comps_1 == comps_2:
-                continue
-            would_short = False
-            for ci in comps_1 & comps_2:
-                ports_at_j1 = {p[1] for p in jj_port_detail.get((jx1, jy1), []) if p[0] == ci}
-                ports_at_j2 = {p[1] for p in jj_port_detail.get((jx2, jy2), []) if p[0] == ci}
-                if ports_at_j1 and ports_at_j2 and ports_at_j1 != ports_at_j2:
-                    would_short = True
-                    break
-            if would_short:
-                continue
-            non_gnd_1 = {ci for ci in comps_1 if components[ci]["name"] != "GND"}
-            non_gnd_2 = {ci for ci in comps_2 if components[ci]["name"] != "GND"}
-            if not non_gnd_1 and not non_gnd_2:
-                continue
-            dist = math.hypot(jx1 - jx2, jy1 - jy2)
-            if dist < JJ_PROXIMITY:
-                jj_raw.append((dist, jx1, jy1, jx2, jy2))
-                continue
-            aligned_h = abs(jy1 - jy2) < jj_align and abs(jx1 - jx2) > 10
-            aligned_v = abs(jx1 - jx2) < jj_align and abs(jy1 - jy2) > 10
-            if not (aligned_h or aligned_v) or dist >= jj_max:
-                continue
-            skel_ok = False
-            if skeleton is not None:
-                skel_ok = _verify_skeleton_path(skeleton, jx1, jy1, jx2, jy2, margin=5, min_ratio=0.25)
-            on_wire = _on_same_wire(jx1, jy1, jx2, jy2, wire_bboxes)
-            if skel_ok or on_wire:
-                jj_raw.append((dist, jx1, jy1, jx2, jy2))
-
-    # Nearest-neighbor filter: each junction connects only to its CLOSEST
-    # aligned neighbor in each of 4 directions (L, R, U, D). This prevents
-    # cascading over-merging from all-pairs alignment.
-    neighbor_map = defaultdict(list)  # (jx,jy) -> [(dist, nx, ny), ...]
-    for dist, jx1, jy1, jx2, jy2 in jj_raw:
-        neighbor_map[(jx1, jy1)].append((dist, jx2, jy2))
-        neighbor_map[(jx2, jy2)].append((dist, jx1, jy1))
-
-    jj_connections = []
-    junc_conn_count = defaultdict(int)
-    for (jx, jy), neighbors in neighbor_map.items():
-        # Group neighbors by direction
-        left = [(d, nx, ny) for d, nx, ny in neighbors if abs(ny - jy) < jj_align and nx < jx]
-        right = [(d, nx, ny) for d, nx, ny in neighbors if abs(ny - jy) < jj_align and nx > jx]
-        up = [(d, nx, ny) for d, nx, ny in neighbors if abs(nx - jx) < jj_align and ny < jy]
-        down = [(d, nx, ny) for d, nx, ny in neighbors if abs(nx - jx) < jj_align and ny > jy]
-        # Pick closest in each direction
-        for direction in [left, right, up, down]:
-            if direction:
-                direction.sort(key=lambda x: x[0])
-                d, nx, ny = direction[0]
-                # Only connect if both junctions are under degree limit
-                max_deg = _junc_branch_count.get((jx, jy), 8)
-                max_deg_n = _junc_branch_count.get((nx, ny), 8)
-                if junc_conn_count[(jx, jy)] < max_deg + 2 and junc_conn_count[(nx, ny)] < max_deg_n + 2:
-                    jj_connections.append((jx, jy, nx, ny))
-                    junc_conn_count[(jx, jy)] += 1
-                    junc_conn_count[(nx, ny)] += 1
-
-    # ---- Step 7a-skel: Non-aligned skeleton-verified JJ connections ----
-    # Only enable when aligned JJ is sparse (< 15 connections) to avoid
-    # over-merging in dense circuits where skeleton is unreliable.
-    skel_jj_added = 0
-    if len(jj_connections) < 15 and skeleton is not None:
-        already_jj = set()
-        for jx1, jy1, jx2, jy2 in jj_connections:
-            already_jj.add((min(jx1,jx2), min(jy1,jy2), max(jx1,jx2), max(jy1,jy2)))
+        # Collect all aligned pairs with skeleton verification
+        jj_raw = []  # (dist, jx1, jy1, jx2, jy2)
         for i in range(len(junctions)):
             for j in range(i + 1, len(junctions)):
                 jx1, jy1 = junctions[i]
                 jx2, jy2 = junctions[j]
-                key = (min(jx1,jx2), min(jy1,jy2), max(jx1,jx2), max(jy1,jy2))
-                if key in already_jj:
-                    continue
-                dist = math.hypot(jx1 - jx2, jy1 - jy2)
-                if dist < 40 or dist > 650:
-                    continue
-                # Skip if already aligned (handled by Step 7)
-                if abs(jy1 - jy2) < jj_align or abs(jx1 - jx2) < jj_align:
-                    continue
                 comps_1 = jj_port_map.get((jx1, jy1), set())
                 comps_2 = jj_port_map.get((jx2, jy2), set())
+                if comps_1 and comps_2 and comps_1 == comps_2:
+                    continue
                 would_short = False
                 for ci in comps_1 & comps_2:
                     ports_at_j1 = {p[1] for p in jj_port_detail.get((jx1, jy1), []) if p[0] == ci}
@@ -1852,181 +1968,277 @@ def process_image(img_path):
                 non_gnd_2 = {ci for ci in comps_2 if components[ci]["name"] != "GND"}
                 if not non_gnd_1 and not non_gnd_2:
                     continue
-                if _verify_skeleton_any(skeleton, jx1, jy1, jx2, jy2, margin=6, min_ratio=0.40):
-                    max_deg_1 = _junc_branch_count.get((jx1, jy1), 8)
-                    max_deg_2 = _junc_branch_count.get((jx2, jy2), 8)
-                    if junc_conn_count[(jx1, jy1)] < max_deg_1 + 2 and                        junc_conn_count[(jx2, jy2)] < max_deg_2 + 2:
-                        jj_connections.append((jx1, jy1, jx2, jy2))
-                        junc_conn_count[(jx1, jy1)] += 1
-                        junc_conn_count[(jx2, jy2)] += 1
-                        skel_jj_added += 1
-    if skel_jj_added:
-        print(f"  Junction->Junction (skel-nonaligned): +{skel_jj_added}")
-
-    print(f"  Junction->Junction: {len(jj_connections)}")
-
-    # ---- Step 7b: Line-of-sight port connections (sparse junctions only) ----
-    LOS_ALIGN = 25  # horizontal/vertical alignment tolerance (px)
-    LOS_SKEL_MIN = int(200 * im_scale)  # distance beyond which skeleton verification is required
-    los_added = 0
-    los_candidates = []  # (dist, ia, pa, ib, pb)
-    connected_set = set((ci, pi) for ci, pi, jx, jy in p2j_connections)
-    for ia in range(len(components)):
-        ca = components[ia]
-        for pa, (ax, ay) in enumerate(ca["ports"]):
-            for ib in range(ia + 1, len(components)):
-                cb = components[ib]
-                for pb, (bx, by) in enumerate(cb["ports"]):
-                    if ca["name"] == "GND" and cb["name"] == "GND":
-                        continue
-                    same_h = abs(ay - by) < LOS_ALIGN and abs(ax - bx) > 5
-                    same_v = abs(ax - bx) < LOS_ALIGN and abs(ay - by) > 5
-                    if not (same_h or same_v):
-                        continue
-                    a_conn = (ia, pa) in connected_set
-                    b_conn = (ib, pb) in connected_set
-                    if a_conn and b_conn:
-                        continue  # both already connected
-                    # Check no component bbox blocks the direct line
-                    blocked = False
-                    for k, ck in enumerate(components):
-                        if k == ia or k == ib:
-                            continue
-                        kx1, ky1, kx2, ky2 = ck["xyxy"]
-                        if same_h:
-                            x_min, x_max = min(ax, bx), max(ax, bx)
-                            if kx2 > x_min + 5 and kx1 < x_max - 5:
-                                if ky1 < ay + LOS_ALIGN and ky2 > ay - LOS_ALIGN:
-                                    blocked = True
-                                    break
-                        else:  # same_v
-                            y_min, y_max = min(ay, by), max(ay, by)
-                            if ky2 > y_min + 5 and ky1 < y_max - 5:
-                                if kx1 < ax + LOS_ALIGN and kx2 > ax - LOS_ALIGN:
-                                    blocked = True
-                                    break
-                    if blocked:
-                        continue
-                    d = math.hypot(ax - bx, ay - by)
-                    # For longer LOS, require skeleton wire support
-                    if d > LOS_SKEL_MIN and skeleton is not None:
-                        if not _verify_skeleton_path(skeleton, ax, ay, bx, by, margin=5, min_ratio=0.25):
-                            continue
-                    los_candidates.append((d, ia, pa, ib, pb))
-
-    # For each component pair, keep only the closest port pair
-    best_pairs = {}
-    for d, ia, pa, ib, pb in los_candidates:
-        key = (min(ia, ib), max(ia, ib))
-        if key not in best_pairs or d < best_pairs[key][0]:
-            best_pairs[key] = (d, ia, pa, ib, pb)
-
-    for d, ia, pa, ib, pb in best_pairs.values():
-        mx = (components[ia]["ports"][pa][0] + components[ib]["ports"][pb][0]) // 2
-        my = (components[ia]["ports"][pa][1] + components[ib]["ports"][pb][1]) // 2
-        p2j_connections.append((ia, pa, mx, my))
-        p2j_connections.append((ib, pb, mx, my))
-        connected_set.add((ia, pa))
-        connected_set.add((ib, pb))
-        los_added += 1
-    if los_added:
-        print(f"  Line-of-sight: +{los_added} connections")
-
-    # ---- Step 7c: Force-connect remaining isolated ports ----
-    connected_set = set((ci, pi) for ci, pi, jx, jy in p2j_connections)
-    comp_junc_ports = defaultdict(set)
-    for ci, pi, jx, jy in p2j_connections:
-        comp_junc_ports[(ci, jx, jy)].add(pi)
-    forced = 0
-    for ci, c in enumerate(components):
-        unconnected = [pi for pi in range(len(c["ports"])) if (ci, pi) not in connected_set]
-        if len(unconnected) == 1:
-            # Exactly one port isolated -> force to nearest valid junction
-            pi = unconnected[0]
-            px, py = c["ports"][pi]
-            best_j, best_d = None, 99999
-            for jx, jy in junctions:
-                d = math.hypot(px - jx, py - jy)
-                if d < best_d and d < 500:
-                    # Skip if this junction already has any OTHER port of this component
-                    existing = comp_junc_ports.get((ci, jx, jy), set())
-                    if existing - {pi}:
-                        continue
-                    if d > 150 and skeleton is not None:
-                        if not _verify_skeleton_path(skeleton, px, py, jx, jy, margin=5, min_ratio=0.25):
-                            continue
-                    if not crosses((px, py), (jx, jy), components, ci):
-                        best_d = d
-                        best_j = (jx, jy)
-            if best_j:
-                p2j_connections.append((ci, pi, best_j[0], best_j[1]))
-                connected_set.add((ci, pi))
-                comp_junc_ports[(ci, best_j[0], best_j[1])].add(pi)
-                forced += 1
-    if forced:
-        print(f"  Force-connected: +{forced} isolated ports")
-
-    # ---- Step 7d: Close-port proximity rule ----
-    # If two unconnected ports from different components are within 25px
-    # (with 5px hand-drawn tolerance per axis), connect them directly.
-    # This catches adjacent ports that P2J missed (e.g. C2.2/R2.2).
-    close_added = 0
-    connected_now = set((ci, pi) for ci, pi, jx, jy in p2j_connections)
-    for ia, ca in enumerate(components):
-        for pa, (ax, ay) in enumerate(ca["ports"]):
-            if (ia, pa) in connected_now:
-                continue
-            for ib, cb in enumerate(components):
-                if ib <= ia:
+                dist = math.hypot(jx1 - jx2, jy1 - jy2)
+                if dist < JJ_PROXIMITY:
+                    jj_raw.append((dist, jx1, jy1, jx2, jy2))
                     continue
-                for pb, (bx, by) in enumerate(cb["ports"]):
-                    if (ib, pb) in connected_now:
+                aligned_h = abs(jy1 - jy2) < jj_align and abs(jx1 - jx2) > 10
+                aligned_v = abs(jx1 - jx2) < jj_align and abs(jy1 - jy2) > 10
+                if not (aligned_h or aligned_v) or dist >= jj_max:
+                    continue
+                skel_ok = False
+                if skeleton is not None:
+                    skel_ok = _verify_skeleton_path(skeleton, jx1, jy1, jx2, jy2, margin=5, min_ratio=0.15)
+                on_wire = _on_same_wire(jx1, jy1, jx2, jy2, wire_bboxes)
+                if skel_ok or on_wire or not config["use_skeleton"]:
+                    jj_raw.append((dist, jx1, jy1, jx2, jy2))
+
+        jj_connections = []
+        junc_conn_count = defaultdict(int)
+        if config["use_nn_filter"]:
+            # Nearest-neighbor filter: each junction connects only to its CLOSEST
+            # aligned neighbor in each of 4 directions (L, R, U, D). This prevents
+            # cascading over-merging from all-pairs alignment.
+            neighbor_map = defaultdict(list)  # (jx,jy) -> [(dist, nx, ny), ...]
+            for dist, jx1, jy1, jx2, jy2 in jj_raw:
+                neighbor_map[(jx1, jy1)].append((dist, jx2, jy2))
+                neighbor_map[(jx2, jy2)].append((dist, jx1, jy1))
+
+            for (jx, jy), neighbors in neighbor_map.items():
+                # Group neighbors by direction
+                left = [(d, nx, ny) for d, nx, ny in neighbors if abs(ny - jy) < jj_align and nx < jx]
+                right = [(d, nx, ny) for d, nx, ny in neighbors if abs(ny - jy) < jj_align and nx > jx]
+                up = [(d, nx, ny) for d, nx, ny in neighbors if abs(nx - jx) < jj_align and ny < jy]
+                down = [(d, nx, ny) for d, nx, ny in neighbors if abs(nx - jx) < jj_align and ny > jy]
+                # Pick closest in each direction
+                for direction in [left, right, up, down]:
+                    if direction:
+                        direction.sort(key=lambda x: x[0])
+                        d, nx, ny = direction[0]
+                        if config["use_degree_constraint"]:
+                            max_deg = _junc_branch_count.get((jx, jy), 8)
+                            max_deg_n = _junc_branch_count.get((nx, ny), 8)
+                            if junc_conn_count[(jx, jy)] >= max_deg + 2 or junc_conn_count[(nx, ny)] >= max_deg_n + 2:
+                                continue
+                        jj_connections.append((jx, jy, nx, ny))
+                        junc_conn_count[(jx, jy)] += 1
+                        junc_conn_count[(nx, ny)] += 1
+        else:
+            # No NN filter: accept all aligned pairs directly
+            for dist, jx1, jy1, jx2, jy2 in jj_raw:
+                if config["use_degree_constraint"]:
+                    max_deg = _junc_branch_count.get((jx1, jy1), 8)
+                    max_deg_n = _junc_branch_count.get((jx2, jy2), 8)
+                    if junc_conn_count[(jx1, jy1)] >= max_deg + 2 or junc_conn_count[(jx2, jy2)] >= max_deg_n + 2:
                         continue
-                    dx = abs(ax - bx)
-                    dy = abs(ay - by)
-                    # Close ports: within 50px euclidean distance
-                    if math.hypot(dx, dy) < 50:
-                        # Don't wire two GNDs together
-                        if ca["name"] == "GND" and cb["name"] == "GND":
+                jj_connections.append((jx1, jy1, jx2, jy2))
+                junc_conn_count[(jx1, jy1)] += 1
+                junc_conn_count[(jx2, jy2)] += 1
+
+        # ---- Step 7a-skel: Non-aligned skeleton-verified JJ connections ----
+        # Only enable when aligned JJ is sparse (< 15 connections) to avoid
+        # over-merging in dense circuits where skeleton is unreliable.
+        skel_jj_added = 0
+        if len(jj_connections) < 15 and skeleton is not None and config["use_skel_jj"]:
+            already_jj = set()
+            for jx1, jy1, jx2, jy2 in jj_connections:
+                already_jj.add((min(jx1,jx2), min(jy1,jy2), max(jx1,jx2), max(jy1,jy2)))
+            for i in range(len(junctions)):
+                for j in range(i + 1, len(junctions)):
+                    jx1, jy1 = junctions[i]
+                    jx2, jy2 = junctions[j]
+                    key = (min(jx1,jx2), min(jy1,jy2), max(jx1,jx2), max(jy1,jy2))
+                    if key in already_jj:
+                        continue
+                    dist = math.hypot(jx1 - jx2, jy1 - jy2)
+                    if dist < 40 or dist > 400:
+                        continue
+                    # Skip if already aligned (handled by Step 7)
+                    if abs(jy1 - jy2) < jj_align or abs(jx1 - jx2) < jj_align:
+                        continue
+                    comps_1 = jj_port_map.get((jx1, jy1), set())
+                    comps_2 = jj_port_map.get((jx2, jy2), set())
+                    would_short = False
+                    for ci in comps_1 & comps_2:
+                        ports_at_j1 = {p[1] for p in jj_port_detail.get((jx1, jy1), []) if p[0] == ci}
+                        ports_at_j2 = {p[1] for p in jj_port_detail.get((jx2, jy2), []) if p[0] == ci}
+                        if ports_at_j1 and ports_at_j2 and ports_at_j1 != ports_at_j2:
+                            would_short = True
+                            break
+                    if would_short:
+                        continue
+                    non_gnd_1 = {ci for ci in comps_1 if components[ci]["name"] != "GND"}
+                    non_gnd_2 = {ci for ci in comps_2 if components[ci]["name"] != "GND"}
+                    if not non_gnd_1 and not non_gnd_2:
+                        continue
+                    if _verify_skeleton_any(skeleton, jx1, jy1, jx2, jy2, margin=6, min_ratio=0.50):
+                        max_deg_1 = _junc_branch_count.get((jx1, jy1), 8)
+                        max_deg_2 = _junc_branch_count.get((jx2, jy2), 8)
+                        if junc_conn_count[(jx1, jy1)] < max_deg_1 + 2 and                        junc_conn_count[(jx2, jy2)] < max_deg_2 + 2:
+                            jj_connections.append((jx1, jy1, jx2, jy2))
+                            junc_conn_count[(jx1, jy1)] += 1
+                            junc_conn_count[(jx2, jy2)] += 1
+                            skel_jj_added += 1
+        if skel_jj_added:
+            print(f"  Junction->Junction (skel-nonaligned): +{skel_jj_added}")
+
+        print(f"  Junction->Junction: {len(jj_connections)}")
+
+        # ---- Step 7b: Line-of-sight port connections (sparse junctions only) ----
+        los_added = 0
+        if config["use_los"]:
+            LOS_ALIGN = 25  # horizontal/vertical alignment tolerance (px)
+            LOS_SKEL_MIN = int(200 * im_scale)  # distance beyond which skeleton verification is required
+            los_candidates = []  # (dist, ia, pa, ib, pb)
+            connected_set = set((ci, pi) for ci, pi, jx, jy in p2j_connections)
+            for ia in range(len(components)):
+                ca = components[ia]
+                for pa, (ax, ay) in enumerate(ca["ports"]):
+                    for ib in range(ia + 1, len(components)):
+                        cb = components[ib]
+                        for pb, (bx, by) in enumerate(cb["ports"]):
+                            if ca["name"] == "GND" and cb["name"] == "GND":
+                                continue
+                            same_h = abs(ay - by) < LOS_ALIGN and abs(ax - bx) > 5
+                            same_v = abs(ax - bx) < LOS_ALIGN and abs(ay - by) > 5
+                            if not (same_h or same_v):
+                                continue
+                            a_conn = (ia, pa) in connected_set
+                            b_conn = (ib, pb) in connected_set
+                            if a_conn and b_conn:
+                                continue  # both already connected
+                            # Check no component bbox blocks the direct line
+                            blocked = False
+                            for k, ck in enumerate(components):
+                                if k == ia or k == ib:
+                                    continue
+                                kx1, ky1, kx2, ky2 = ck["xyxy"]
+                                if same_h:
+                                    x_min, x_max = min(ax, bx), max(ax, bx)
+                                    if kx2 > x_min + 5 and kx1 < x_max - 5:
+                                        if ky1 < ay + LOS_ALIGN and ky2 > ay - LOS_ALIGN:
+                                            blocked = True
+                                            break
+                                else:  # same_v
+                                    y_min, y_max = min(ay, by), max(ay, by)
+                                    if ky2 > y_min + 5 and ky1 < y_max - 5:
+                                        if kx1 < ax + LOS_ALIGN and kx2 > ax - LOS_ALIGN:
+                                            blocked = True
+                                            break
+                            if blocked:
+                                continue
+                            d = math.hypot(ax - bx, ay - by)
+                            # For longer LOS, require skeleton wire support
+                            if d > LOS_SKEL_MIN and skeleton is not None and config["use_skeleton"]:
+                                if not _verify_skeleton_path(skeleton, ax, ay, bx, by, margin=5, min_ratio=0.15):
+                                    continue
+                            los_candidates.append((d, ia, pa, ib, pb))
+
+            # For each component pair, keep only the closest port pair
+            best_pairs = {}
+            for d, ia, pa, ib, pb in los_candidates:
+                key = (min(ia, ib), max(ia, ib))
+                if key not in best_pairs or d < best_pairs[key][0]:
+                    best_pairs[key] = (d, ia, pa, ib, pb)
+
+            for d, ia, pa, ib, pb in best_pairs.values():
+                mx = (components[ia]["ports"][pa][0] + components[ib]["ports"][pb][0]) // 2
+                my = (components[ia]["ports"][pa][1] + components[ib]["ports"][pb][1]) // 2
+                p2j_connections.append((ia, pa, mx, my))
+                p2j_connections.append((ib, pb, mx, my))
+                connected_set.add((ia, pa))
+                connected_set.add((ib, pb))
+                los_added += 1
+        if los_added:
+            print(f"  Line-of-sight: +{los_added} connections")
+
+        # ---- Step 7c: Force-connect remaining isolated ports ----
+        forced = 0
+        if config["use_force_connect"]:
+            connected_set = set((ci, pi) for ci, pi, jx, jy in p2j_connections)
+            comp_junc_ports = defaultdict(set)
+            for ci, pi, jx, jy in p2j_connections:
+                comp_junc_ports[(ci, jx, jy)].add(pi)
+            for ci, c in enumerate(components):
+                unconnected = [pi for pi in range(len(c["ports"])) if (ci, pi) not in connected_set]
+                if len(unconnected) == 1:
+                    # Exactly one port isolated -> force to nearest valid junction
+                    pi = unconnected[0]
+                    px, py = c["ports"][pi]
+                    best_j, best_d = None, 99999
+                    for jx, jy in junctions:
+                        d = math.hypot(px - jx, py - jy)
+                        if d < best_d and d < 500:
+                            # Skip if this junction already has any OTHER port of this component
+                            existing = comp_junc_ports.get((ci, jx, jy), set())
+                            if existing - {pi}:
+                                continue
+                            if d > 150 and skeleton is not None and config["use_skeleton"]:
+                                if not _verify_skeleton_path(skeleton, px, py, jx, jy, margin=5, min_ratio=0.15):
+                                    continue
+                            if not crosses((px, py), (jx, jy), components, ci):
+                                best_d = d
+                                best_j = (jx, jy)
+                    if best_j:
+                        p2j_connections.append((ci, pi, best_j[0], best_j[1]))
+                        connected_set.add((ci, pi))
+                        comp_junc_ports[(ci, best_j[0], best_j[1])].add(pi)
+                        forced += 1
+        if forced:
+            print(f"  Force-connected: +{forced} isolated ports")
+
+        # ---- Step 7d: Close-port proximity rule ----
+        # If two unconnected ports from different components are within 25px
+        # (with 5px hand-drawn tolerance per axis), connect them directly.
+        # This catches adjacent ports that P2J missed (e.g. C2.2/R2.2).
+        close_added = 0
+        if config["use_close_port"]:
+            connected_now = set((ci, pi) for ci, pi, jx, jy in p2j_connections)
+            for ia, ca in enumerate(components):
+                for pa, (ax, ay) in enumerate(ca["ports"]):
+                    if (ia, pa) in connected_now:
+                        continue
+                    for ib, cb in enumerate(components):
+                        if ib <= ia:
                             continue
-                        mx, my = (ax+bx)//2, (ay+by)//2
-                        p2j_connections.append((ia, pa, mx, my))
-                        p2j_connections.append((ib, pb, mx, my))
-                        connected_now.add((ia, pa))
-                        connected_now.add((ib, pb))
-                        if (mx, my) not in junctions:
-                            junctions.append((mx, my))
-                        close_added += 1
-                        break
-                if (ia, pa) in connected_now:
-                    break
-    if close_added:
-        print(f"  Close-port proximity: +{close_added} connections")
+                        for pb, (bx, by) in enumerate(cb["ports"]):
+                            if (ib, pb) in connected_now:
+                                continue
+                            dx = abs(ax - bx)
+                            dy = abs(ay - by)
+                            # Close ports: within 50px euclidean distance
+                            if math.hypot(dx, dy) < 50:
+                                # Don't wire two GNDs together
+                                if ca["name"] == "GND" and cb["name"] == "GND":
+                                    continue
+                                mx, my = (ax+bx)//2, (ay+by)//2
+                                p2j_connections.append((ia, pa, mx, my))
+                                p2j_connections.append((ib, pb, mx, my))
+                                connected_now.add((ia, pa))
+                                connected_now.add((ib, pb))
+                                if (mx, my) not in junctions:
+                                    junctions.append((mx, my))
+                                close_added += 1
+                                break
+                        if (ia, pa) in connected_now:
+                            break
+        if close_added:
+            print(f"  Close-port proximity: +{close_added} connections")
 
-    # ---- Step 8: Route all connections ----
-    routes = []
-    # Build set of port coordinates for direct LOS connection detection
-    all_port_coords = set()
-    for c in components:
-        for px, py in c["ports"]:
-            all_port_coords.add((int(px), int(py)))
+        # ---- Step 8: Route all connections ----
+        routes = []
+        # Build set of port coordinates for direct LOS connection detection
+        all_port_coords = set()
+        for c in components:
+            for px, py in c["ports"]:
+                all_port_coords.add((int(px), int(py)))
 
-    for ci, pi, jx, jy in p2j_connections:
-        px, py = components[ci]["ports"][pi]
-        is_port_target = (int(jx), int(jy)) in all_port_coords
-        # Always try orthogonal routing first
-        pts = route((px, py), (jx, jy), components, ci)
-        if pts:
-            routes.append(pts)
-        elif is_port_target or not crosses((px, py), (jx, jy), components, ci):
-            # Route failed but path is clear: use direct line as fallback
-            routes.append([(px, py), (jx, jy)])
-    for jx1, jy1, jx2, jy2 in jj_connections:
-        pts = route((jx1, jy1), (jx2, jy2), components, -1)
-        if pts:
-            routes.append(pts)
+        for ci, pi, jx, jy in p2j_connections:
+            px, py = components[ci]["ports"][pi]
+            is_port_target = (int(jx), int(jy)) in all_port_coords
+            # Always try orthogonal routing first
+            pts = route((px, py), (jx, jy), components, ci)
+            if pts:
+                routes.append(pts)
+            elif is_port_target or not crosses((px, py), (jx, jy), components, ci):
+                # Route failed but path is clear: use direct line as fallback
+                routes.append([(px, py), (jx, jy)])
+        for jx1, jy1, jx2, jy2 in jj_connections:
+            pts = route((jx1, jy1), (jx2, jy2), components, -1)
+            if pts:
+                routes.append(pts)
 
-    print(f"  Routes: {len(routes)}")
+        print(f"  Routes: {len(routes)}")
 
     # ---- Step 9: Build connection graph for LLM context ----
     # Union-find on ports connected through junctions
@@ -2226,9 +2438,12 @@ def process_image(img_path):
 - 整体质量评分(1-10)
 - 一句话改进建议"""
 
-    print(f"\n  LLM evaluating... (prompt={len(prompt)} chars)")
-    response = ask(prompt)
-    print(f"  LLM response received ({len(response)} chars)")
+    if config["skip_llm"]:
+        response = "(LLM skipped for experiment)"
+    else:
+        print(f"\n  LLM evaluating... (prompt={len(prompt)} chars)")
+        response = ask(prompt)
+        print(f"  LLM response received ({len(response)} chars)")
 
     # ---- Step 11: Draw annotated image ----
     out_img = Path(img_path).parent / (Path(img_path).stem + "_wired.jpg")
@@ -2271,8 +2486,12 @@ def process_image(img_path):
         f.write(f"\n[LLM评价]\n{'='*60}\n{response}\n")
 
     print(f"  Output: {out_img.name}, {out_txt.name}")
+    # Build raw_groups: port-level connectivity for evaluation
+    raw_groups = [sorted(port_set) for port_set in groups.values()
+                  if len(set(ci for ci, pi in port_set)) >= 2]
     return dict(components=components, text_values=text_values, junctions=junctions,
-                routes=routes, conn_pairs=conn_pairs, evaluation=response)
+                routes=routes, conn_pairs=conn_pairs, raw_groups=raw_groups,
+                evaluation=response)
 
 # ---------------------------------------------------------------------------
 # Drawing
