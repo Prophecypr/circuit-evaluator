@@ -53,7 +53,7 @@ CGH_NAME_MAP = {
     "inductor": "Inductor", "inductor.ferrite": "Inductor",
     "diode": "Diode", "diode.light_emitting": "LED", "diode.zener": "Zener Diode",
     "diode.thyrector": "Diode",
-    "voltage.dc": "V-DC", "voltage.ac": "V-AC", "voltage.battery": "V-DC",
+    "voltage.dc": "V-DC", "voltage.ac": "V-AC", "voltage.battery": "Battery",
     "gnd": "GND", "vss": "GND",
     "transistor.bjt": "BJT-PNP", "transistor.fet": "MOSFET-P",
     "operational_amplifier": "Op-Amp",
@@ -112,7 +112,7 @@ CGH_TO_PORT_KEY = {
     "inductor.coupled": "Transformer", "transformer": "Transformer",
     "diode": "Diode", "diode.light_emitting": "LED",
     "diode.zener": "Zener Diode", "diode.thyrector": "Diode",
-    "voltage.dc": "V-DC", "voltage.ac": "V-AC", "voltage.battery": "V-DC",
+    "voltage.dc": "V-DC", "voltage.ac": "V-AC", "voltage.battery": "Battery",
     "gnd": "GND", "vss": "GND",
     "transistor.bjt": "BJT-PNP", "transistor.fet": "MOSFET-P",
     "transistor.photo": "Photo-Transistor",
@@ -146,13 +146,13 @@ PORT_LABELS = {
     "Triac":          ["T1", "T2"],
     "Diac":           ["T1", "T2"],
     "Varistor":       ["1", "2"],
-    "V-DC":           ["-", "+"],
+    "V-DC":           ["+", "-"],
     "V-AC":           ["~", "~"],
     "I-DC":           ["-", "+"],
     "I-AC":           ["~", "~"],
     "GND":            ["GND"],
-    "BJT-NPN":        ["B", "C", "E"],
-    "BJT-PNP":        ["B", "C", "E"],
+    "BJT-NPN":        ["B", "E", "C"],
+    "BJT-PNP":        ["B", "E", "C"],
     "MOSFET-N":       ["G", "S", "D"],
     "MOSFET-P":       ["G", "S", "D"],
     "Op-Amp":         ["-", "+", "OUT"],
@@ -202,13 +202,13 @@ PORT_POSITIONS = {
     "Triac":          [(0,0.5), (1,0.5)],
     "Diac":           [(0,0.5), (1,0.5)],
     "Varistor":       [(0,0.5), (1,0.5)],
-    "V-DC":           [(0.5,1.0), (0.5,0.0)],
-    "V-AC":           [(0.5,1.0), (0.5,0.0)],
-    "I-DC":           [(0.5,1.0), (0.5,0.0)],
-    "I-AC":           [(0.5,1.0), (0.5,0.0)],
+    "V-DC":           [(0.5,0.0), (0.5,1.0)],
+    "V-AC":           [(0.5,0.0), (0.5,1.0)],
+    "I-DC":           [(0.5,0.0), (0.5,1.0)],
+    "I-AC":           [(0.5,0.0), (0.5,1.0)],
     "GND":            [(0.5,0.0)],
-    "BJT-NPN":        [(0,0.5), (0.7,1.0), (0.7,0.0)],
-    "BJT-PNP":        [(0,0.5), (0.7,1.0), (0.7,0.0)],
+    "BJT-NPN":        [(0.0,0.5), (0.7,0.0), (0.7,1.0)],
+    "BJT-PNP":        [(0.0,0.5), (0.7,0.0), (0.7,1.0)],
     "MOSFET-N":       [(0,0.5), (0.5,1.0), (0.5,0.0)],
     "MOSFET-P":       [(0,0.5), (0.5,1.0), (0.5,0.0)],
     "Op-Amp":         [(0,0.5), (0,0.3), (1,0.5)],
@@ -460,12 +460,9 @@ def _detect_ic_ports(img_path, x1, y1, x2, y2, max_ports=4):
 def _detect_orientation(img_path, x1, y1, x2, y2, plist, raw_name="", use_sobel=True):
     """Determine if a 2-pin component needs port rotation.
 
-    Capacitors & LEDs: use Sobel edge detection on the cropped image.
-      Sobel Gx detects vertical edges (|), Gy detects horizontal edges (-).
-      - Capacitor: plates are parallel lines. If plates are horizontal (=) -> rotate.
-      - LED: has diode triangle + arrows. If vertical (arrows sideways) -> rotate.
-    Other components: use bbox aspect ratio (bh/bw > 1.3 -> rotate).
-    When use_sobel=False: pure aspect-ratio logic for all components.
+    LEDs: use aspect ratio only (Sobel unreliable — internal triangle/arrows mislead).
+    Capacitors: use Sobel if available, otherwise aspect ratio.
+    Others: aspect ratio.
     """
     bw, bh = x2 - x1, y2 - y1
     if bw <= 0 or bh <= 0:
@@ -473,58 +470,30 @@ def _detect_orientation(img_path, x1, y1, x2, y2, plist, raw_name="", use_sobel=
     is_default_h = abs(plist[0][0] - plist[1][0]) > abs(plist[0][1] - plist[1][1])
     is_cap = "capacitor" in raw_name.lower() if raw_name else False
     is_led = "light_emitting" in raw_name.lower() if raw_name else False
+    ratio = bh / max(bw, 1)
 
-    if (is_cap or is_led) and is_default_h and use_sobel:
-        # Default ports left/right. Use Sobel to check if component is actually vertical.
+    if is_led:
+        # LED default is horizontal (ports left-right). Tall-narrow LED -> vertical ports.
+        return ratio > 1.4
+
+    if is_cap and use_sobel:
         img = cv2.imread(img_path)
         if img is not None:
             h, w = img.shape[:2]
             cx1, cy1 = max(0, x1), max(0, y1)
             cx2, cy2 = min(w, x2), min(h, y2)
-            if cx2 > cx1 + 5 and cy2 > cy1 + 5:
+            if cx2 > cx1 + 10 and cy2 > cy1 + 10:
                 crop = cv2.cvtColor(img[cy1:cy2, cx1:cx2], cv2.COLOR_BGR2GRAY)
-                grad_x = cv2.Sobel(crop, cv2.CV_64F, 1, 0, ksize=3)
-                grad_y = cv2.Sobel(crop, cv2.CV_64F, 0, 1, ksize=3)
-                v_energy = float(np.sum(np.abs(grad_x)))  # vertical edges
-                h_energy = float(np.sum(np.abs(grad_y)))  # horizontal edges
-                if h_energy + v_energy > 0:
-                    # Horizontal edges dominate -> component is vertical -> rotate
-                    # Capacitors: threshold 1.3 (conservative)
-                    # LEDs: threshold 1.5 (diode triangle gives mixed edges)
-                    threshold = 1.5 if is_led else 1.3
-                    return h_energy > v_energy * threshold
-        # Fallback: aspect ratio
-        ratio = bh / max(bw, 1)
-        if is_led:
-            # LED: vertical LED has wide bbox (arrows), so bh < bw
-            # Horizontal LED has tall bbox, so bh > bw
-            return ratio < 0.8  # wide -> vertical -> rotate
-        else:
-            return ratio > 2.5  # very tall -> vertical -> rotate
-    elif is_cap and use_sobel:
-        # Default ports top/bottom (rare). Detect if need to rotate back.
-        img = cv2.imread(img_path)
-        if img is not None:
-            h, w = img.shape[:2]
-            cx1, cy1 = max(0, x1), max(0, y1)
-            cx2, cy2 = min(w, x2), min(h, y2)
-            if cx2 > cx1 + 5 and cy2 > cy1 + 5:
-                crop = cv2.cvtColor(img[cy1:cy2, cx1:cx2], cv2.COLOR_BGR2GRAY)
-                grad_x = cv2.Sobel(crop, cv2.CV_64F, 1, 0, ksize=3)
-                grad_y = cv2.Sobel(crop, cv2.CV_64F, 0, 1, ksize=3)
-                v_energy = float(np.sum(np.abs(grad_x)))
-                h_energy = float(np.sum(np.abs(grad_y)))
-                if h_energy + v_energy > 0:
-                    return v_energy > h_energy * 1.3
-        ratio = bh / max(bw, 1)
-        return ratio < 0.4
+                ve = float(np.sum(np.abs(cv2.Sobel(crop, cv2.CV_64F, 1, 0, ksize=3))))
+                he = float(np.sum(np.abs(cv2.Sobel(crop, cv2.CV_64F, 0, 1, ksize=3))))
+                if he + ve > 0:
+                    return ve > he * 1.3
+        return ratio > 1.8
+
+    if is_default_h:
+        return ratio > 1.3
     else:
-        # Non-cap/LED components: aspect ratio
-        ratio = bh / max(bw, 1)
-        if is_default_h:
-            return ratio > 1.3
-        else:
-            return ratio < 0.77
+        return ratio < 0.77
 # ---------------------------------------------------------------------------
 # Grid snap + Union-Find merging
 # ---------------------------------------------------------------------------

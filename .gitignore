@@ -39,3 +39,10 @@ ocr_corrections.json
 
 # Jupyter checkpoints
 .ipynb_checkpoints/
+
+# Project-local docs (not for publishing)
+发表路线图.md
+预处理规则.md
+AGENTS.md
+picture.zip
+*.ipynb

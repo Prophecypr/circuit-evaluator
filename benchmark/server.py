@@ -7,7 +7,7 @@ from flask import Flask, send_file, jsonify, request
 
 ROOT = Path(__file__).resolve().parent
 PROJECT = ROOT.parent
-IMAGE_DIR = PROJECT / "picture"
+IMAGE_DIR = ROOT
 DET_DIR = ROOT / "detections"
 RESULT_DIR = ROOT / "result"
 
