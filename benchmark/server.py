@@ -1,56 +1,77 @@
-"""Simple HTTP server for the annotation tool.
-Usage: python server.py
-Then open http://localhost:8765 in browser.
+"""Minimal server for the circuit annotation tool.
+Run: python benchmark/server.py
 """
-import http.server
-import json
-import os
+import os, json
 from pathlib import Path
-from urllib.parse import unquote
+from flask import Flask, send_file, jsonify, request
 
-BENCHMARK = Path(__file__).parent
+ROOT = Path(__file__).resolve().parent
+PROJECT = ROOT.parent
+IMAGE_DIR = PROJECT / "picture"
+DET_DIR = ROOT / "detections"
+RESULT_DIR = ROOT / "result"
 
-class Handler(http.server.SimpleHTTPRequestHandler):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=str(BENCHMARK), **kwargs)
+app = Flask(__name__, static_folder=str(ROOT))
+RESULT_DIR.mkdir(exist_ok=True)
 
-    def do_GET(self):
-        path = unquote(self.path)
-        if path == "/api/images":
-            manifest = BENCHMARK / "manifest.txt"
-            images = []
-            if manifest.exists():
-                with open(manifest) as f:
-                    for line in f:
-                        if line.strip():
-                            images.append(line.strip().split("\t")[0])
-            self.send_json(images)
-            return
-        if path.startswith("/images/"):
-            self.path = "/" + path.split("/", 2)[-1]
-            return super().do_GET()
-        if path.startswith("/detections/"):
-            self.path = "/detections/" + path.split("/detections/", 1)[1]
-            return super().do_GET()
-        if path == "/" or path == "":
-            self.path = "/annotation_tool.html"
-            return super().do_GET()
-        return super().do_GET()
 
-    def send_json(self, data):
-        body = json.dumps(data, ensure_ascii=False).encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", len(body))
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
-        self.wfile.write(body)
+@app.route("/")
+def index():
+    return send_file(ROOT / "annotation_tool.html")
 
-    def log_message(self, format, *args):
-        pass
+
+@app.route("/api/images")
+def api_images():
+    imgs = sorted(
+        p.name for p in IMAGE_DIR.iterdir()
+        if p.suffix.lower() in (".jpg", ".jpeg", ".png")
+    )
+    return jsonify(imgs)
+
+
+@app.route("/detections/<path:filename>")
+def serve_detection(filename):
+    det = DET_DIR / filename
+    if det.is_file():
+        return send_file(str(det))
+    return "Not found", 404
+
+
+@app.route("/api/save", methods=["POST"])
+def save_gt():
+    body = request.get_json()
+    fname = body.get("filename", "unknown")
+    lines = body.get("groups", [])
+    gt_name = Path(fname).stem + "_gt.txt"
+    gt_path = RESULT_DIR / gt_name
+    gt_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return jsonify({"ok": True, "path": str(gt_path)})
+
+
+@app.route("/<path:filename>")
+def serve_file(filename):
+    # Check detections dir first
+    det = DET_DIR / filename
+    if det.is_file():
+        return send_file(str(det))
+    # Then images dir
+    img = IMAGE_DIR / filename
+    if img.is_file():
+        return send_file(str(img))
+    # Then results dir
+    res = RESULT_DIR / filename
+    if res.is_file():
+        return send_file(str(res))
+    # Then root (html, etc.)
+    p = ROOT / filename
+    if p.is_file():
+        return send_file(str(p))
+    return "Not found", 404
+
 
 if __name__ == "__main__":
-    os.chdir(BENCHMARK)
-    print(f"Annotation tool: http://localhost:8765")
-    print(f"Press Ctrl+C to stop")
-    http.server.HTTPServer(("0.0.0.0", 8765), Handler).serve_forever()
+    port = int(os.environ.get("PORT", 8765))
+    print(f"Serving at http://localhost:{port}")
+    print(f"Images: {IMAGE_DIR}")
+    print(f"Detections: {DET_DIR}")
+    app.run(host="127.0.0.1", port=port, debug=False)
