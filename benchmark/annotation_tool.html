@@ -93,7 +93,7 @@ ctx.restore()}
 document.onkeydown=e=>{if(e.key>='1'&&e.key<='9'){cg=parseInt(e.key)-1;upd();draw()}if(e.key==='s'||e.key==='S'){e.preventDefault();save()}if(e.key==='ArrowLeft')prev();if(e.key==='ArrowRight')next();if(e.key==='z'&&e.ctrlKey){e.preventDefault();undo()}}
 function prev(){let s=document.getElementById('sel');if(s.selectedIndex>0){s.selectedIndex--;load(s.value)}}
 function next(){let s=document.getElementById('sel');if(s.selectedIndex<list.length-1){s.selectedIndex++;load(s.value)}}
-function save(){let lines=groups.map((g,i)=>'G'+(i+1)+': '+g.m.map(m=>m.name+'.'+m.label).join(', '));let blob=new Blob([lines.join('\n')],{type:'text/plain'});let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=data.image.replace(/\.[^.]+$/,'')+'_gt.txt';a.click();document.getElementById('status').textContent='Saved '+a.download+' ('+groups.length+' groups)'}
+function save(){let lines=groups.map((g,i)=>'G'+(i+1)+': '+g.m.map(m=>m.name+'.'+m.label).join(', '));let s=document.getElementById('status');s.textContent='Saving...';fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:data.image,groups:lines})}).then(r=>r.json()).then(r=>{s.textContent='Saved '+r.path+' ('+groups.length+' groups)'}).catch(()=>{let blob=new Blob([lines.join('\n')],{type:'text/plain'});let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=data.image.replace(/\.[^.]+$/,'')+'_gt.txt';a.click();s.textContent='Downloaded '+a.download+' ('+groups.length+' groups)'})}
 window.onresize=draw
 </script>
 </body>
