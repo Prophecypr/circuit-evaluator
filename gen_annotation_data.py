@@ -110,47 +110,24 @@ import cv2, numpy as np
 
 
 def detect_orientation(img_path, x1, y1, x2, y2, plist, raw_name=""):
-    """Determine if the component should be rotated 90 degrees based on image content and aspect ratio."""
+    """Determine if a 2-pin component should be rotated based on bbox aspect ratio only.
+
+    Default port positions are the common case. Rotation swaps x<->y.
+    Only rotate when the bbox aspect is strongly opposite to the default port direction.
+    """
     bw, bh = x2 - x1, y2 - y1
     if bw <= 0 or bh <= 0:
         return False
     is_default_h = abs(plist[0][0] - plist[1][0]) > abs(plist[0][1] - plist[1][1])
     ratio = bh / max(bw, 1)
 
-    is_cap = "capacitor" in raw_name.lower() if raw_name else False
-    is_led = "light_emitting" in raw_name.lower() if raw_name else False
-
-    if is_led:
-        # LED default is horizontal (ports left-right). The arrow/triangle inside
-        # produces strong horizontal edges, so Sobel is unreliable here.
-        # Use aspect ratio: a tall-narrow LED (ratio > 1.4) probably has vertical ports.
-        return ratio > 1.4
-
-    if is_cap:
-        # Capacitor default is horizontal (ports left-right).
-        # Vertical caps (ports top-bottom) are tall-narrow.
-        # Try Sobel if crop is available, otherwise fall back to ratio.
-        img = cv2.imread(img_path)
-        if img is not None:
-            h, w = img.shape[:2]
-            cx1, cy1 = max(0, x1), max(0, y1)
-            cx2, cy2 = min(w, x2), min(h, y2)
-            if cx2 > cx1 + 10 and cy2 > cy1 + 10:
-                crop = cv2.cvtColor(img[cy1:cy2, cx1:cx2], cv2.COLOR_BGR2GRAY)
-                ve = float(np.sum(np.abs(cv2.Sobel(crop, cv2.CV_64F, 1, 0, ksize=3))))
-                he = float(np.sum(np.abs(cv2.Sobel(crop, cv2.CV_64F, 0, 1, ksize=3))))
-                if he + ve > 0:
-                    # Horizontal edges stronger → capacitor plates are horizontal
-                    # → symbol is vertical → ports top/bottom → NEED ROTATION
-                    return he > ve * 1.3
-        # Fallback: tall-narrow caps
-        return ratio > 1.8
-
-    # Generic: use aspect ratio with default port direction
+    # Only rotate when aspect ratio strongly contradicts default port direction
     if is_default_h:
-        return ratio > 1.3
+        # Default ports left/right. Rotate only if bbox is very tall.
+        return ratio > 1.5
     else:
-        return ratio < 0.77
+        # Default ports top/bottom. Rotate only if bbox is very wide.
+        return ratio < 0.6
 
 
 manifest = BENCHMARK / "manifest.txt"
