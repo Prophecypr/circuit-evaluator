@@ -460,42 +460,21 @@ def _detect_ic_ports(img_path, x1, y1, x2, y2, max_ports=4):
 def _detect_orientation(img_path, x1, y1, x2, y2, plist, raw_name="", use_sobel=True):
     """Determine if a 2-pin component needs port rotation.
 
-    LEDs: use aspect ratio only (Sobel unreliable — internal triangle/arrows mislead).
-    Capacitors: use Sobel if available, otherwise aspect ratio.
-    Others: aspect ratio.
+    Pure aspect-ratio based. Default port positions are the common case.
+    Only rotate when bbox ratio strongly contradicts the default port direction.
     """
     bw, bh = x2 - x1, y2 - y1
     if bw <= 0 or bh <= 0:
         return False
     is_default_h = abs(plist[0][0] - plist[1][0]) > abs(plist[0][1] - plist[1][1])
-    is_cap = "capacitor" in raw_name.lower() if raw_name else False
-    is_led = "light_emitting" in raw_name.lower() if raw_name else False
     ratio = bh / max(bw, 1)
 
-    if is_led:
-        # LED default is horizontal (ports left-right). Tall-narrow LED -> vertical ports.
-        return ratio > 1.4
-
-    if is_cap and use_sobel:
-        img = cv2.imread(img_path)
-        if img is not None:
-            h, w = img.shape[:2]
-            cx1, cy1 = max(0, x1), max(0, y1)
-            cx2, cy2 = min(w, x2), min(h, y2)
-            if cx2 > cx1 + 10 and cy2 > cy1 + 10:
-                crop = cv2.cvtColor(img[cy1:cy2, cx1:cx2], cv2.COLOR_BGR2GRAY)
-                ve = float(np.sum(np.abs(cv2.Sobel(crop, cv2.CV_64F, 1, 0, ksize=3))))
-                he = float(np.sum(np.abs(cv2.Sobel(crop, cv2.CV_64F, 0, 1, ksize=3))))
-                if he + ve > 0:
-                    # Horizontal edges stronger → capacitor plates are horizontal lines
-                    # → symbol is drawn vertically → ports top/bottom → NEED ROTATION
-                    return he > ve * 1.3
-        return ratio > 1.8
-
     if is_default_h:
-        return ratio > 1.3
+        # Default ports left/right. Rotate only if bbox is very tall.
+        return ratio > 1.5
     else:
-        return ratio < 0.77
+        # Default ports top/bottom. Rotate only if bbox is very wide.
+        return ratio < 0.6
 # ---------------------------------------------------------------------------
 # Grid snap + Union-Find merging
 # ---------------------------------------------------------------------------
