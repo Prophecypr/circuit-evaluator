@@ -6,7 +6,7 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',sans-serif;display:flex;height:100vh;background:#1a1a2e;color:#eee}
-.sidebar{width:320px;padding:12px;overflow-y:auto;background:#16213e;border-right:1px solid #0f3460}
+.sidebar{width:340px;padding:12px;overflow-y:auto;background:#16213e;border-right:1px solid #0f3460}
 .main{flex:1;display:flex;flex-direction:column}
 .toolbar{padding:8px 12px;background:#0f3460;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .canvas-wrap{flex:1;overflow:hidden;background:#111;position:relative}
@@ -18,6 +18,14 @@ button:hover{background:#6a4c9e}
 .group.active{border-color:#fff}
 #info{font-size:12px;color:#aaa;padding:4px 0}
 #status{font-size:13px;color:#ffd700;margin-top:4px}
+.editor{background:#0a0a1a;padding:8px;margin:4px 0;border-radius:4px;font-size:11px}
+.editor label{color:#aaa;font-size:10px}
+.editor input,.editor select{width:100%;background:#222;color:#eee;border:1px solid #444;padding:3px 6px;border-radius:3px;font-size:12px;margin:2px 0}
+.editor .btn-row{display:flex;gap:4px;margin-top:4px}
+.editor .btn-row button{flex:1;font-size:11px}
+.editor .field{display:flex;align-items:center;gap:4px;margin:2px 0}
+.editor .field span{flex:0;min-width:36px;color:#aaa;font-size:11px}
+.editor .field input{flex:1}
 </style>
 </head>
 <body>
@@ -25,20 +33,43 @@ button:hover{background:#6a4c9e}
 <h3>图片列表</h3>
 <select id="sel" style="width:100%;margin:8px 0" onchange="load(this.value)"><option>-- 选择 --</option></select>
 <div id="info"></div>
+<button onclick="saveFix()" style="width:100%;margin:4px 0;background:#e74c3c">Save Fixes + JSON</button>
 <hr style="border-color:#333;margin:8px 0">
 <h4>连通组 | 当前组: <b id="cg">1</b></h4>
 <div class="group-list" id="groups"></div>
 <button onclick="undo()" style="width:100%;margin-top:8px;background:#e67e22">Undo</button>
 <button onclick="save()" style="width:100%;margin-top:4px;background:#27ae60">Save GT</button>
 <div id="status"></div>
+<hr style="border-color:#333;margin:8px 0">
+<h4>元件编辑 | <b id="cname">--</b></h4>
+<div class="editor" id="editor" style="display:none">
+  <div class="field"><span>Name:</span>
+    <select id="ed_name" onchange="onNameChange()">
+      <option value="Resistor">Resistor</option><option value="Potentiometer">Potentiometer</option>
+      <option value="Capacitor">Capacitor</option><option value="Polarized-Capacitor">Polarized-Capacitor</option>
+      <option value="Inductor">Inductor</option><option value="Diode">Diode</option><option value="LED">LED</option>
+      <option value="Zener-Diode">Zener-Diode</option><option value="V-DC">V-DC</option><option value="V-AC">V-AC</option>
+      <option value="I-DC">I-DC</option><option value="I-AC">I-AC</option><option value="Battery">Battery</option>
+      <option value="BJT">BJT</option><option value="FET">FET</option>
+      <option value="GND">GND</option><option value="Switch">Switch</option>
+      <option value="Relay">Relay</option><option value="Transformer">Transformer</option>
+      <option value="Op-Amp">Op-Amp</option><option value="IC">IC</option><option value="NE555">NE555</option>
+      <option value="Speaker">Speaker</option><option value="Motor">Motor</option>
+      <option value="Lamp">Lamp</option><option value="Terminal">Terminal</option>
+      <option value="Explanatory">Explanatory</option>
+    </select>
+  </div>
+  <div class="field"><span>Des:</span><input id="ed_des" size="6"></div>
+  <div class="btn-row"><button onclick="movePort(0)">Move P0</button><button onclick="movePort(1)">Move P1</button><button onclick="movePort(2)" id="btnP2" style="display:none">Move P2</button><button onclick="undoMove()" style="background:#e67e22;display:none" id="btnUndoMove">Undo Move</button></div>
+  <div class="btn-row"><button onclick="flipPorts()">Flip Labels</button></div>
+  <div class="btn-row"><button onclick="commitEdit()" style="background:#2ecc71">Apply</button></div>
+</div>
 </div>
 <div class="main">
 <div class="toolbar">
-<button onclick="prev()">Prev</button>
-<button onclick="next()">Next</button>
-<button onclick="zIn()">+</button><button onclick="zOut()">-</button><button onclick="zFit()">Fit to Window</button>
-<button onclick="z100()">100%</button>
-<span style="font-size:12px;color:#aaa;margin-left:8px">左键空白拖拽 | 滚轮缩放 | 点端口连线</span>
+<button onclick="prev()">Prev</button><button onclick="next()">Next</button>
+<button onclick="zIn()">+</button><button onclick="zOut()">-</button><button onclick="zFit()">Fit</button><button onclick="z100()">100%</button>
+<span style="font-size:12px;color:#aaa;margin-left:8px">双击元件框→编辑 | 右键端口→移动 | 中键拖拽</span>
 <span id="pos" style="margin-left:12px;font-size:12px;color:#aaa"></span>
 </div>
 <div class="canvas-wrap" id="wrap"><canvas id="c"></canvas></div>
@@ -47,10 +78,107 @@ button:hover{background:#6a4c9e}
 const CLR=['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#e91e63','#00bcd4','#8bc34a','#cddc39','#ff5722'];
 let img=null,data=null,groups=[],cg=0,selP=null,zoom=1,px=0,py=0,list=[];
 let drag=false, dragX=0, dragY=0, startPX=0, startPY=0;
+let edC=null, edPi=-1, moveBackup=null;  // component being edited
 
 fetch('/api/images').then(r=>r.json()).then(l=>{list=l;l.forEach((n,i)=>{let o=document.createElement('option');o.value=n;o.textContent=(i+1)+'. '+n;sel.appendChild(o)});document.getElementById('info').textContent=l.length+' images'});
 
-async function load(n){document.getElementById('status').textContent='Loading...';img=new Image();img.src='/'+n;await new Promise(r=>{img.onload=r});let s=n.replace(/\.[^.]+$/,'');let r=await fetch('/detections/'+s+'.json');data=await r.json();groups=[];cg=0;selP=null;zFit();upd();draw();document.getElementById('status').textContent=data.components.length+' components'}
+async function load(n){
+  document.getElementById('status').textContent='Loading...';
+  img=new Image();img.src='/'+n;
+  await new Promise(r=>{img.onload=r});
+  let s=n.replace(/\.[^.]+$/,'');
+  let r=await fetch('/detections/'+s+'.json');
+  data=await r.json();
+  groups=[];cg=0;selP=null;edC=null;closeEditor();
+  zFit();upd();draw();
+  document.getElementById('status').textContent=data.components.length+' components';
+}
+
+function closeEditor(){
+  edC=null;edPi=-1;
+  document.getElementById('editor').style.display='none';
+  document.getElementById('cname').textContent='--';
+}
+
+function openEditor(ci){
+  edC=data.components[ci];
+  document.getElementById('editor').style.display='block';
+  document.getElementById('cname').textContent=edC.designator;
+  document.getElementById('ed_name').value=edC.name;
+  document.getElementById('ed_des').value=edC.designator;
+  document.getElementById('btnP2').style.display=edC.ports.length>=3?'inline':'none';
+}
+
+function onNameChange(){
+  if(!edC)return;
+  let old=edC.name, n=document.getElementById('ed_name').value;
+  // Auto-match first letter for designator
+  let pre={'Resistor':'R','Potentiometer':'R','Capacitor':'C','Polarized-Capacitor':'C',
+    'Inductor':'L','Diode':'D','LED':'L','Zener-Diode':'ZD',
+    'V-DC':'V','V-AC':'V','I-DC':'I','I-AC':'I','Battery':'BAT',
+    'BJT':'Q','FET':'Q','GND':'GND','Switch':'SW','Relay':'RL',
+    'Transformer':'T','Op-Amp':'U','IC':'U','NE555':'U','Speaker':'SP',
+    'Motor':'M','Lamp':'LMP','Terminal':'T','Explanatory':'X'};
+  let np=pre[n]||n[0];
+  let des=document.getElementById('ed_des').value;
+  let oldPre={'Resistor':'R','Potentiometer':'R','Capacitor':'C','Polarized-Capacitor':'C','Inductor':'L','Diode':'D','LED':'L','Zener-Diode':'ZD','V-DC':'V','V-AC':'V','I-DC':'I','I-AC':'I','Battery':'BAT','BJT':'Q','FET':'Q','GND':'GND','Switch':'SW','Relay':'RL','Transformer':'T','Op-Amp':'U','IC':'U','NE555':'U'};
+  let op=oldPre[old]||old[0];
+  if(des.startsWith(op)) des=np+des.slice(op.length);
+  document.getElementById('ed_des').value=des;
+}
+
+function movePort(pi){
+  if(!edC||pi>=edC.ports.length)return;
+  edPi=pi;
+  moveBackup={ci:edC.idx,pi:pi,pos:[...edC.ports[pi]]};
+  document.getElementById('btnUndoMove').style.display='inline';
+  document.getElementById('status').textContent='点击画布设置 P'+pi+' 新位置...';
+}
+
+function undoMove(){
+  if(!edC||!moveBackup||edC.idx!==moveBackup.ci)return;
+  edC.ports[moveBackup.pi]=moveBackup.pos;
+  edPi=-1;moveBackup=null;
+  document.getElementById('btnUndoMove').style.display='none';
+  document.getElementById('status').textContent='Port position undone';
+  draw();upd();
+}
+
+function flipPorts(){
+  if(!edC)return;
+  edC.ports.reverse();
+  edC.labels.reverse();
+  document.getElementById('status').textContent='Labels flipped (click Apply to confirm)';
+  draw();upd();
+}
+
+function commitEdit(){
+  if(!edC)return;
+  edC.name=document.getElementById('ed_name').value;
+  edC.designator=document.getElementById('ed_des').value;
+  // Default labels for 2-port
+  let nm=edC.name;
+  let defLabels={'Resistor':['1','2'],'Capacitor':['1','2'],'Polarized-Capacitor':['+','-'],
+    'Inductor':['1','2'],'Diode':['+','-'],'LED':['+','-'],'Zener-Diode':['+','-'],
+    'V-DC':['+','-'],'V-AC':['~','~'],'I-DC':['+','-'],'I-AC':['~','~'],
+    'Battery':['+','-'],'GND':['GND'],'Switch':['1','2'],'Speaker':['1','2'],
+    'BJT':['B','E','C'],'FET':['G','S','D'],'Motor':['+','-'],
+    'Relay':['C1','C2','NO','COM'],'Transformer':['P1','P2','S1','S2'],
+    'Op-Amp':['-','+','OUT','V+','V-']};
+  let dl=defLabels[nm];
+  if(dl&&dl.length===edC.ports.length) edC.labels=[...dl];
+  document.getElementById('status').textContent=edC.designator+' updated';
+  draw();upd();
+}
+
+function saveFix(){
+  if(!data)return;
+  let s=document.getElementById('status');
+  s.textContent='Saving fix...';
+  fetch('/api/save_fix',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({filename:data.image.replace(/\.[^.]+$/,'')+'.json',data:data})
+  }).then(r=>r.json()).then(r=>{s.textContent='Fix saved: '+r.path});
+}
 
 function zFit(){let w=wrap.clientWidth,h=wrap.clientHeight;zoom=Math.min(w/img.width,h/img.height,0.95);px=(w-img.width*zoom)/2;py=(h-img.height*zoom)/2;draw()}
 function z100(){zoom=1;px=(wrap.clientWidth-img.width)/2;py=(wrap.clientHeight-img.height)/2;draw()}
@@ -59,16 +187,49 @@ function zOut(){let cx=wrap.clientWidth/2,cy=wrap.clientHeight/2;let ix=(cx-px)/
 
 const cv=document.getElementById('c'), wrap=document.getElementById('wrap');
 
-// Left click: on port=select, on background=drag to pan. Scroll=zoom.
+// Double-click on component bbox -> open editor
+// Right-click on port -> move it
 cv.onmousedown=e=>{
-  if(e.button!==0)return;
-  let{x,y}=s2i(e.offsetX,e.offsetY);let p=findP(x,y);
-  if(p){if(selP&&selP.ci!==p.ci){addC(selP,p);selP=null}else if(selP&&selP.ci===p.ci&&selP.pi===p.pi)selP=null;else selP=p;draw()}
-  else{drag=true;dragX=e.clientX;dragY=e.clientY;startPX=px;startPY=py;selP=null;draw()}
+  if(e.button===2){  // right click
+    e.preventDefault();
+    let{x,y}=s2i(e.offsetX,e.offsetY);
+    let p=findP(x,y);
+    if(p){document.getElementById('status').textContent='Right-clicked '+p.name+'.'+p.label; selP=p; draw();}
+    return;
+  }
+  if(e.button===0){
+    let{x,y}=s2i(e.offsetX,e.offsetY);
+    if(edPi>=0&&edC){
+      edC.ports[edPi]=[x,y];
+      document.getElementById('status').textContent=edC.designator+' port '+edPi+' moved to ('+x+','+y+')';
+      edPi=-1;draw();upd();return;
+    }
+    let p=findP(x,y);
+    if(p){if(selP&&selP.ci!==p.ci){addC(selP,p);selP=null}else if(selP&&selP.ci===p.ci&&selP.pi===p.pi)selP=null;else selP=p;draw()}
+    else{drag=true;dragX=e.clientX;dragY=e.clientY;startPX=px;startPY=py;selP=null;draw()}
+  }
 };
+cv.ondblclick=e=>{
+  let{x,y}=s2i(e.offsetX,e.offsetY);
+  let ci=findComp(x,y);
+  if(ci>=0) openEditor(ci);
+};
+cv.oncontextmenu=e=>e.preventDefault();
+
+function findComp(mx,my){
+  if(!data)return -1;
+  for(let c of data.components){
+    let[x1,y1,x2,y2]=c.xyxy;
+    if(mx>=x1&&mx<=x2&&my>=y1&&my<=y2)return c.idx;
+  }
+  return -1;
+}
+
 cv.onmousemove=e=>{
   if(drag){px=startPX+(e.clientX-dragX);py=startPY+(e.clientY-dragY);draw();return}
-  let{x,y}=s2i(e.offsetX,e.offsetY);cv.style.cursor=findP(x,y)?'pointer':'grab';document.getElementById('pos').textContent='('+x+','+y+')'
+  let{x,y}=s2i(e.offsetX,e.offsetY);
+  cv.style.cursor=findP(x,y)?'pointer':findComp(x,y)>=0?'crosshair':'grab';
+  document.getElementById('pos').textContent='('+x+','+y+')';
 };
 cv.onmouseup=()=>{drag=false};
 cv.onwheel=e=>{e.preventDefault();let cx=e.offsetX,cy=e.offsetY;let ix=(cx-px)/zoom,iy=(cy-py)/zoom;zoom=Math.max(0.1,Math.min(10,zoom*(e.deltaY<0?1.1:0.9)));px=cx-ix*zoom;py=cy-iy*zoom;draw()};
@@ -81,20 +242,76 @@ groups.push({m:[{ci:p1.ci,pi:p1.pi,name:p1.name,label:p1.label},{ci:p2.ci,pi:p2.
 
 function undo(){if(!groups.length)return;let g=groups[groups.length-1];g.m.pop();if(g.m.length<2)groups.pop();upd();draw()}
 
-function upd(){let d=document.getElementById('groups');d.innerHTML='';document.getElementById('cg').textContent=cg+1;groups.forEach((g,i)=>{let e=document.createElement('div');e.className='group'+(i===cg?' active':'');e.style.background=CLR[i%12]+'33';e.style.borderColor=i===cg?'#fff':CLR[i%12];e.innerHTML='<b>G'+(i+1)+'</b> ('+g.m.length+')';e.onclick=()=>{cg=i;upd();draw()};g.m.forEach(m=>{let x=document.createElement('div');x.style.background=CLR[i%12]+'44';x.style.padding='2px 4px';x.style.margin='2px 0';x.style.borderRadius='3px';x.style.fontSize='11px';x.style.cursor='pointer';x.textContent=m.name+'.'+m.label;x.onclick=ev=>{ev.stopPropagation();g.m=g.m.filter(v=>!(v.ci===m.ci&&v.pi===m.pi));if(g.m.length<2)groups.splice(i,1);upd();draw()};e.appendChild(x)});d.appendChild(e)})}
+function upd(){let d=document.getElementById('groups');d.innerHTML='';document.getElementById('cg').textContent=cg+1;groups.forEach((g,i)=>{let e=document.createElement('div');e.className='group'+(i===cg?' active':'');e.style.background=CLR[i%12]+'33';e.style.borderColor=i===cg?'#fff':CLR[i%12];e.innerHTML='<b>G'+(i+1)+'</b> ('+g.m.length+')';e.onclick=()=>{cg=i;upd();draw()};g.m.forEach(m=>{let x=document.createElement('div');x.style.background=CLR[i%12]+'44';x.style.padding='2px 4px';x.style.margin='2px 0';x.style.borderRadius='3px';x.style.fontSize='11px';x.style.cursor='pointer';x.textContent=m.name+'.'+m.label;x.onclick=ev=>{ev.stopPropagation();g.m=g.m.filter(v=>!(v.ci===m.ci&&v.pi===m.pi));if(g.m.length<2)groups.splice(i,1);upd();draw()};e.appendChild(x)});d.appendChild(e)})
+}
 
-function draw(){if(!img||!data)return;let cw=wrap.clientWidth,ch=wrap.clientHeight;cv.width=cw;cv.height=ch;let ctx=cv.getContext('2d');ctx.fillStyle='#222';ctx.fillRect(0,0,cw,ch);ctx.save();ctx.translate(px,py);ctx.scale(zoom,zoom);ctx.drawImage(img,0,0);
-data.components.forEach(c=>{let[x1,y1,x2,y2]=c.xyxy;ctx.strokeStyle='#ffd70044';ctx.lineWidth=1.5/zoom;ctx.strokeRect(x1,y1,x2-x1,y2-y1);ctx.fillStyle='#ffd700';ctx.font=Math.max(10,13/zoom)+'px sans-serif';ctx.fillText(c.designator,x1,y1-3/zoom);
-c.ports.forEach(([px,py],pi)=>{let s=selP&&selP.ci===c.idx&&selP.pi===pi;ctx.beginPath();ctx.arc(px,py,s?10/zoom:6/zoom,0,6.28);ctx.fillStyle=s?'#fff':'#00ff00cc';ctx.fill();ctx.strokeStyle='#000';ctx.lineWidth=1.5/zoom;ctx.stroke();ctx.fillStyle='#000';ctx.font='bold '+Math.max(8,11/zoom)+'px sans-serif';ctx.textAlign='center';ctx.fillText(c.labels[pi],px,py-10/zoom)})});
-groups.forEach((g,i)=>{ctx.strokeStyle=CLR[i%12];ctx.lineWidth=1.5/zoom;for(let a=0;a<g.m.length;a++)for(let b=a+1;b<g.m.length;b++){let pa=data.components[g.m[a].ci].ports[g.m[a].pi];let pb=data.components[g.m[b].ci].ports[g.m[b].pi];ctx.beginPath();ctx.moveTo(pa[0],pa[1]);ctx.lineTo(pb[0],pb[1]);ctx.stroke()}});
-if(selP){let[px,py]=data.components[selP.ci].ports[selP.pi];ctx.beginPath();ctx.arc(px,py,12/zoom,0,6.28);ctx.strokeStyle='#fff';ctx.lineWidth=3/zoom;ctx.stroke()}
-ctx.restore()}
+function draw(){
+  if(!img||!data)return;
+  let cw=wrap.clientWidth,ch=wrap.clientHeight;
+  cv.width=cw;cv.height=ch;
+  let ctx=cv.getContext('2d');
+  ctx.fillStyle='#222';ctx.fillRect(0,0,cw,ch);
+  ctx.save();ctx.translate(px,py);ctx.scale(zoom,zoom);
+  ctx.drawImage(img,0,0);
+  data.components.forEach(c=>{
+    let[x1,y1,x2,y2]=c.xyxy;
+    let isEd=edC&&edC.idx===c.idx;
+    ctx.strokeStyle=isEd?'#ff4444':'#ffd70044';ctx.lineWidth=(isEd?2:1.5)/zoom;
+    ctx.strokeRect(x1,y1,x2-x1,y2-y1);
+    ctx.fillStyle='#ffd700';ctx.font=Math.max(10,13/zoom)+'px sans-serif';
+    ctx.fillText(c.designator,x1,y1-3/zoom);
+    c.ports.forEach(([px,py],pi)=>{
+      let s=selP&&selP.ci===c.idx&&selP.pi===pi;
+      ctx.beginPath();ctx.arc(px,py,s?10/zoom:6/zoom,0,6.28);
+      ctx.fillStyle=s?'#fff':'#00ff00cc';ctx.fill();
+      ctx.strokeStyle='#000';ctx.lineWidth=1.5/zoom;ctx.stroke();
+      ctx.fillStyle='#000';ctx.font='bold '+Math.max(8,11/zoom)+'px sans-serif';
+      ctx.textAlign='center';ctx.fillText(c.labels[pi],px,py-10/zoom);
+    });
+  });
+  groups.forEach((g,i)=>{
+    ctx.strokeStyle=CLR[i%12];ctx.lineWidth=2/zoom;
+    for(let a=0;a<g.m.length;a++)for(let b=a+1;b<g.m.length;b++){
+      let pa=data.components[g.m[a].ci].ports[g.m[a].pi];
+      let pb=data.components[g.m[b].ci].ports[g.m[b].pi];
+      ctx.beginPath();ctx.moveTo(pa[0],pa[1]);ctx.lineTo(pb[0],pb[1]);ctx.stroke();
+    }
+  });
+  if(selP){
+    let[px,py]=data.components[selP.ci].ports[selP.pi];
+    ctx.beginPath();ctx.arc(px,py,12/zoom,0,6.28);
+    ctx.strokeStyle='#fff';ctx.lineWidth=3/zoom;ctx.stroke();
+  }
+  ctx.restore();
+}
 
-document.onkeydown=e=>{if(e.key>='1'&&e.key<='9'){cg=parseInt(e.key)-1;upd();draw()}if(e.key==='s'||e.key==='S'){e.preventDefault();save()}if(e.key==='ArrowLeft')prev();if(e.key==='ArrowRight')next();if(e.key==='z'&&e.ctrlKey){e.preventDefault();undo()}}
+document.onkeydown=e=>{
+  if(e.key>='1'&&e.key<='9'){cg=parseInt(e.key)-1;upd();draw()}
+  if(e.key==='s'||e.key==='S'){e.preventDefault();save()}
+  if(e.key==='f'&&e.ctrlKey){e.preventDefault();saveFix()}
+  if(e.key==='ArrowLeft')prev();
+  if(e.key==='ArrowRight')next();
+  if(e.key==='z'&&e.ctrlKey){e.preventDefault();undo()}
+  if(e.key==='Escape'){closeEditor();draw();upd()}
+};
+
 function prev(){let s=document.getElementById('sel');if(s.selectedIndex>0){s.selectedIndex--;load(s.value)}}
 function next(){let s=document.getElementById('sel');if(s.selectedIndex<list.length-1){s.selectedIndex++;load(s.value)}}
-function save(){let lines=groups.map((g,i)=>'G'+(i+1)+': '+g.m.map(m=>m.name+'.'+m.label).join(', '));let s=document.getElementById('status');s.textContent='Saving...';fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:data.image,groups:lines})}).then(r=>r.json()).then(r=>{s.textContent='Saved '+r.path+' ('+groups.length+' groups)'}).catch(()=>{let blob=new Blob([lines.join('\n')],{type:'text/plain'});let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=data.image.replace(/\.[^.]+$/,'')+'_gt.txt';a.click();s.textContent='Downloaded '+a.download+' ('+groups.length+' groups)'})}
-window.onresize=draw
+
+function save(){
+  let lines=groups.map((g,i)=>'G'+(i+1)+': '+g.m.map(m=>m.name+'.'+m.label).join(', '));
+  let s=document.getElementById('status');s.textContent='Saving...';
+  fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({filename:data.image,groups:lines})
+  }).then(r=>r.json()).then(r=>{s.textContent='Saved '+r.path+' ('+groups.length+' groups)'})
+  .catch(()=>{let blob=new Blob([lines.join('\n')],{type:'text/plain'});
+    let a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download=data.image.replace(/\.[^.]+$/,'')+'_gt.txt';a.click();
+    s.textContent='Downloaded '+a.download+' ('+groups.length+' groups)';
+  });
+}
+
+window.onresize=draw;
 </script>
 </body>
 </html>
