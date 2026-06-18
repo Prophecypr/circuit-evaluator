@@ -140,8 +140,9 @@ def detect_orientation(img_path, x1, y1, x2, y2, plist, raw_name=""):
                 ve = float(np.sum(np.abs(cv2.Sobel(crop, cv2.CV_64F, 1, 0, ksize=3))))
                 he = float(np.sum(np.abs(cv2.Sobel(crop, cv2.CV_64F, 0, 1, ksize=3))))
                 if he + ve > 0:
-                    # Strong vertical edges = vertical cap = need rotate
-                    return ve > he * 1.3
+                    # Horizontal edges stronger → capacitor plates are horizontal
+                    # → symbol is vertical → ports top/bottom → NEED ROTATION
+                    return he > ve * 1.3
         # Fallback: tall-narrow caps
         return ratio > 1.8
 

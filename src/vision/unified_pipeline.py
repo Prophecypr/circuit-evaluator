@@ -487,7 +487,9 @@ def _detect_orientation(img_path, x1, y1, x2, y2, plist, raw_name="", use_sobel=
                 ve = float(np.sum(np.abs(cv2.Sobel(crop, cv2.CV_64F, 1, 0, ksize=3))))
                 he = float(np.sum(np.abs(cv2.Sobel(crop, cv2.CV_64F, 0, 1, ksize=3))))
                 if he + ve > 0:
-                    return ve > he * 1.3
+                    # Horizontal edges stronger → capacitor plates are horizontal lines
+                    # → symbol is drawn vertically → ports top/bottom → NEED ROTATION
+                    return he > ve * 1.3
         return ratio > 1.8
 
     if is_default_h:
