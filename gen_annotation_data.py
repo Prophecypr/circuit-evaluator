@@ -110,10 +110,12 @@ import cv2, numpy as np
 
 
 def detect_orientation(img_path, x1, y1, x2, y2, plist, raw_name=""):
-    """Determine if a 2-pin component should be rotated based on bbox aspect ratio only.
+    """Determine if a 2-pin component should be rotated based on bbox aspect ratio.
 
     Default port positions are the common case. Rotation swaps x<->y.
-    Only rotate when the bbox aspect is strongly opposite to the default port direction.
+    LED: ratio < 0.55 -> bbox is very wide (arrow/triangle stretches it) -> ports top/bottom.
+    PolCap: ratio < 0.75 -> similar, polarity mark stretches bbox.
+    Others: ratio > 1.5 (tall) or < 0.6 (very wide).
     """
     bw, bh = x2 - x1, y2 - y1
     if bw <= 0 or bh <= 0:
@@ -121,12 +123,18 @@ def detect_orientation(img_path, x1, y1, x2, y2, plist, raw_name=""):
     is_default_h = abs(plist[0][0] - plist[1][0]) > abs(plist[0][1] - plist[1][1])
     ratio = bh / max(bw, 1)
 
-    # Only rotate when aspect ratio strongly contradicts default port direction
+    is_led = raw_name and "light_emitting" in raw_name.lower()
+    is_polcap = raw_name and "capacitor.polarized" in raw_name.lower()
+
+    if is_led:
+        return ratio < 0.55
+
+    if is_polcap:
+        return ratio < 0.75
+
     if is_default_h:
-        # Default ports left/right. Rotate only if bbox is very tall.
         return ratio > 1.5
     else:
-        # Default ports top/bottom. Rotate only if bbox is very wide.
         return ratio < 0.6
 
 
