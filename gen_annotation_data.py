@@ -186,9 +186,8 @@ for i, img_name in enumerate(images):
             ports.append([px, py])
 
         labels = PORT_LABELS.get(hcd_name, ["?"] * len(ports))
-        # When rotated, swap 2-port labels (LED +/-, PolCap +/-, etc.)
-        if need_rotate and len(labels) == 2:
-            labels = list(reversed(labels))
+        # When rotated, do NOT swap labels — top/left keeps port[0]'s original meaning
+        # (LED + stays at port[0], PolCap + stays at port[0], etc.)
 
         # Designator numbering per class
         prefix_map = {
