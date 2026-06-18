@@ -1319,8 +1319,8 @@ def process_image(img_path, config=None):
                 py = int(y1 + sy * bh)
                 ports.append((px, py))
 
-        # LED label swap: when LED rotates, anode (+) and cathode (-) swap positions
-        label_swap = (need_rotate and "light_emitting" in name)
+        # No label swap on rotation — port[0] keeps its original label
+        label_swap = False
 
         components.append(dict(
             idx=len(components), name=hcd_name, display=display, raw_name=name,
