@@ -1,0 +1,250 @@
+{
+  "image": "C-14_D1_P1.jpg",
+  "width": 3968,
+  "height": 2976,
+  "components": [
+    {
+      "idx": 0,
+      "name": "Op-Amp",
+      "raw_name": "operational_amplifier",
+      "designator": "U1",
+      "xyxy": [
+        1770,
+        947,
+        2562,
+        1767
+      ],
+      "ports": [
+        [
+          1769,
+          1132
+        ],
+        [
+          1771,
+          1618
+        ],
+        [
+          2561,
+          1400
+        ],
+        [
+          2166,
+          947
+        ],
+        [
+          2166,
+          1767
+        ]
+      ],
+      "labels": [
+        "-",
+        "+",
+        "OUT",
+        "V+",
+        "V-"
+      ],
+      "conf": 0.9625725746154785
+    },
+    {
+      "idx": 1,
+      "name": "Resistor",
+      "raw_name": "resistor",
+      "designator": "R1",
+      "xyxy": [
+        930,
+        1517,
+        1290,
+        1701
+      ],
+      "ports": [
+        [
+          930,
+          1609
+        ],
+        [
+          1290,
+          1609
+        ]
+      ],
+      "labels": [
+        "1",
+        "2"
+      ],
+      "conf": 0.9434091448783875
+    },
+    {
+      "idx": 2,
+      "name": "Resistor",
+      "raw_name": "resistor",
+      "designator": "R2",
+      "xyxy": [
+        2017,
+        675,
+        2364,
+        861
+      ],
+      "ports": [
+        [
+          2018,
+          753
+        ],
+        [
+          2364,
+          768
+        ]
+      ],
+      "labels": [
+        "1",
+        "2"
+      ],
+      "conf": 0.9405866861343384
+    },
+    {
+      "idx": 3,
+      "name": "Resistor",
+      "raw_name": "resistor",
+      "designator": "R3",
+      "xyxy": [
+        1522,
+        1770,
+        1707,
+        2159
+      ],
+      "ports": [
+        [
+          1614,
+          1770
+        ],
+        [
+          1614,
+          2159
+        ]
+      ],
+      "labels": [
+        "1",
+        "2"
+      ],
+      "conf": 0.9028905630111694
+    },
+    {
+      "idx": 4,
+      "name": "LED",
+      "raw_name": "diode.light_emitting",
+      "designator": "L1",
+      "xyxy": [
+        1399,
+        1258,
+        1725,
+        1537
+      ],
+      "ports": [
+        [
+          1627,
+          1537
+        ],
+        [
+          1626,
+          1258
+        ]
+      ],
+      "labels": [
+        "+",
+        "-"
+      ],
+      "conf": 0.8916724920272827
+    },
+    {
+      "idx": 5,
+      "name": "Capacitor",
+      "raw_name": "capacitor.unpolarized",
+      "designator": "C1",
+      "xyxy": [
+        2107,
+        475,
+        2214,
+        673
+      ],
+      "ports": [
+        [
+          2107,
+          595
+        ],
+        [
+          2216,
+          578
+        ]
+      ],
+      "labels": [
+        "1",
+        "2"
+      ],
+      "conf": 0.8720017671585083
+    },
+    {
+      "idx": 6,
+      "name": "Terminal",
+      "raw_name": "terminal",
+      "designator": "T1",
+      "xyxy": [
+        3339,
+        1364,
+        3437,
+        1461
+      ],
+      "ports": [
+        [
+          3388,
+          1412
+        ]
+      ],
+      "labels": [
+        "T"
+      ],
+      "conf": 0.7869518995285034
+    },
+    {
+      "idx": 7,
+      "name": "Terminal",
+      "raw_name": "terminal",
+      "designator": "T2",
+      "xyxy": [
+        687,
+        1560,
+        787,
+        1652
+      ],
+      "ports": [
+        [
+          737,
+          1606
+        ]
+      ],
+      "labels": [
+        "T"
+      ],
+      "conf": 0.7752051949501038
+    },
+    {
+      "idx": 8,
+      "name": "GND",
+      "raw_name": "gnd",
+      "designator": "GND1",
+      "xyxy": [
+        1535,
+        2503,
+        1690,
+        2586
+      ],
+      "ports": [
+        [
+          1612,
+          2503
+        ]
+      ],
+      "labels": [
+        "GND"
+      ],
+      "conf": 0.7743483185768127
+    }
+  ]
+}

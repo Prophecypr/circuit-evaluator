@@ -17,6 +17,7 @@ from src.vision.unified_pipeline import process_image, DEFAULT_CONFIG
 BENCHMARK = Path("benchmark")
 RESULT = BENCHMARK / "result"
 DETECTIONS = BENCHMARK / "detections"
+FIXED = BENCHMARK / "fixed"  # manual corrections override detections/
 PORT_MATCH_RADIUS = 60  # px tolerance for port position matching
 
 # ---------------------------------------------------------------------------
@@ -250,11 +251,13 @@ def evaluate(pipeline_result, gt_groups, det_comps):
 def get_image_list():
     """Return list of (img_name, img_path, gt_path, det_path) for images with GT."""
     images = []
-    for gt_file in sorted(RESULT.glob("img_*_gt.txt")):
+    for gt_file in sorted(RESULT.glob("*_gt.txt")):
         stem = gt_file.stem.replace("_gt", "")
         img_name = stem + ".jpg"
         img_path = BENCHMARK / img_name
-        det_path = DETECTIONS / (stem + ".json")
+        det_path = FIXED / (stem + ".json")
+        if not det_path.exists():
+            det_path = DETECTIONS / (stem + ".json")
         if img_path.exists() and det_path.exists():
             images.append((stem, str(img_path), str(gt_file), str(det_path)))
     return images
