@@ -60,7 +60,7 @@ button:hover{background:#6a4c9e}
     </select>
   </div>
   <div class="field"><span>Des:</span><input id="ed_des" size="6"></div>
-  <div class="btn-row"><button onclick="movePort(0)">Move P0</button><button onclick="movePort(1)">Move P1</button><button onclick="movePort(2)" id="btnP2" style="display:none">Move P2</button><button onclick="undoMove()" style="background:#e67e22;display:none" id="btnUndoMove">Undo Move</button></div>
+  <div class="btn-row" id="moveBtns"><button onclick="movePort(0)">Move +</button><button onclick="movePort(1)">Move -</button><button onclick="undoMove()" style="background:#e67e22;display:none" id="btnUndoMove">Undo Move</button></div>
   <div class="btn-row"><button onclick="flipPorts()">Flip Labels</button></div>
   <div class="btn-row"><button onclick="commitEdit()" style="background:#2ecc71">Apply</button></div>
 </div>
@@ -106,7 +106,14 @@ function openEditor(ci){
   document.getElementById('cname').textContent=edC.designator;
   document.getElementById('ed_name').value=edC.name;
   document.getElementById('ed_des').value=edC.designator;
-  document.getElementById('btnP2').style.display=edC.ports.length>=3?'inline':'none';
+  // Rebuild Move buttons with actual port labels
+  let mb=document.getElementById('moveBtns');
+  let html='';
+  for(let pi=0;pi<edC.ports.length;pi++){
+    html+=`<button onclick="movePort(${pi})">Move ${edC.labels[pi]}</button>`;
+  }
+  html+='<button onclick="undoMove()" style="background:#e67e22;display:none" id="btnUndoMove">Undo Move</button>';
+  mb.innerHTML=html;
 }
 
 function onNameChange(){
@@ -132,7 +139,7 @@ function movePort(pi){
   edPi=pi;
   moveBackup={ci:edC.idx,pi:pi,pos:[...edC.ports[pi]]};
   document.getElementById('btnUndoMove').style.display='inline';
-  document.getElementById('status').textContent='点击画布设置 P'+pi+' 新位置...';
+  document.getElementById('status').textContent='点击画布设置 '+edC.labels[pi]+' 新位置...';
 }
 
 function undoMove(){
