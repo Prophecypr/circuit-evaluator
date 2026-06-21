@@ -75,7 +75,7 @@ button:hover{background:#6a4c9e}
 <div class="toolbar">
 <button onclick="prev()">Prev</button><button onclick="next()">Next</button>
 <button onclick="zIn()">+</button><button onclick="zOut()">-</button><button onclick="zFit()">Fit</button><button onclick="z100()">100%</button>
-<span style="font-size:12px;color:#aaa">左键=连线 | Shift+拖边框=缩放 | Shift+拖体内=移动 | 右键=菜单</span>
+<span style="font-size:12px;color:#aaa">左键=连线 | Shift+拖=移动 | Ctrl+拖右下角=缩放 | 右键=菜单</span>
 <span id="pos" style="margin-left:12px;font-size:12px;color:#aaa"></span>
 </div>
 <div class="canvas-wrap" id="wrap"><canvas id="c"></canvas></div>
@@ -116,7 +116,7 @@ const CLR=['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22'
 let img=null,data=null,groups=[],cg=0,selP=null,zoom=1,px=0,py=0,list=[];
 let drag=false, dragX=0, dragY=0, startPX=0, startPY=0;
 let edC=null, edPi=-1, moveBackup=null;
-let shiftDrag=false, shiftC=null; // Shift+drag on component body to move
+let shiftDrag=false, shiftC=null, shiftResize=false; // Ctrl+drag to resize
 let ctxMenuX=0, ctxMenuY=0; // right-click position for add
 
 fetch('/api/images').then(r=>r.json()).then(l=>{list=l;l.forEach((n,i)=>{let o=document.createElement('option');o.value=n;o.textContent=(i+1)+'. '+n;sel.appendChild(o)});document.getElementById('info').textContent=l.length+' images'});
@@ -245,9 +245,12 @@ cv.onmousedown=e=>{
   }
   if(e.button===0){
     // Shift + drag on component: move or resize
-    if(e.shiftKey){
+    if(e.shiftKey||e.ctrlKey){
       let ci=findComp(x,y);
-      if(ci>=0){ shiftDrag=true; shiftC=data.components[ci]; dragX=x; dragY=y; return; }
+      if(ci>=0){
+        shiftDrag=true; shiftC=data.components[ci]; shiftResize=e.ctrlKey;
+        dragX=x; dragY=y; return;
+      }
     }
     // Move port
     if(edPi>=0&&edC){
@@ -272,8 +275,8 @@ cv.onmousemove=e=>{
   if(shiftDrag&&shiftC){
     let{x,y}=s2i(e.offsetX,e.offsetY);
     let dx=x-dragX, dy=y-dragY;
-    if(e.altKey){
-      // Alt+drag = resize (move x2,y2 corner)
+    if(shiftResize){
+      // Ctrl+drag = resize (move only x2,y2 bottom-right)
       shiftC.xyxy[2]=Math.max(shiftC.xyxy[0]+20, shiftC.xyxy[2]+dx);
       shiftC.xyxy[3]=Math.max(shiftC.xyxy[1]+20, shiftC.xyxy[3]+dy);
     } else {
@@ -290,7 +293,7 @@ cv.onmousemove=e=>{
   cv.style.cursor=findP(x,y)?'pointer':findComp(x,y)>=0?(e.shiftKey?'move':'crosshair'):'grab';
   document.getElementById('pos').textContent='('+x+','+y+')';
 };
-cv.onmouseup=()=>{drag=false; shiftDrag=false; shiftC=null;};
+cv.onmouseup=()=>{drag=false; shiftDrag=false; shiftC=null; shiftResize=false;};
 cv.ondblclick=e=>{
   let{x,y}=s2i(e.offsetX,e.offsetY);
   let ci=findComp(x,y); if(ci>=0) openEditor(ci);
