@@ -2,7 +2,7 @@
 Manual fixes stored in fixed/ and merged on load.
 Run: python benchmark/server.py
 """
-import json
+import os, json
 from pathlib import Path
 from flask import Flask, send_file, jsonify, request
 
