@@ -248,18 +248,49 @@ function addComponent(x,y){
     'Switch':['1','2'],'Speaker':['1','2'],'BJT':['B','E','C'],'FET':['G','S','D'],
     'Motor':['+','-'],'Relay':['C1','C2','NO','COM'],'Transformer':['P1','P2','S1','S2'],
     'Op-Amp':['-','+','OUT','V+','V-'],'IC':['-','+','OUT']};
-  let nm=prompt('Component name:','Resistor');
-  if(!nm) return;
-  if(!x){
-    // toolbar button: prompt for position
+  let pre={'Resistor':'R','Potentiometer':'R','Capacitor':'C','Polarized-Capacitor':'C',
+    'Inductor':'L','Diode':'D','LED':'L','Zener-Diode':'ZD','V-DC':'V','V-AC':'V',
+    'I-DC':'I','I-AC':'I','Battery':'BAT','BJT':'Q','FET':'Q','GND':'GND',
+    'Switch':'SW','Relay':'RL','Transformer':'T','Op-Amp':'U','IC':'U',
+    'NE555':'U','Speaker':'SP','Motor':'M','Lamp':'LMP','Terminal':'T'};
+  if(x===undefined){
+    // toolbar button
+    let nm=prompt('Component name:','Resistor');
+    if(!nm) return;
     x=parseInt(prompt('x (left):','100')); y=parseInt(prompt('y (top):','100'));
-    if(!x||!y) return;
+    if(isNaN(x)||isNaN(y)) return;
+    doAdd(nm,x,y);
+  } else {
+    // right-click on canvas — show picker
+    let names=Object.keys(defLabels);
+    let sel=document.createElement('select');
+    sel.style.cssText='position:fixed;z-index:999;font-size:14px;padding:4px';
+    names.forEach(n=>{let o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o)});
+    sel.style.left=((x-px)*zoom+px+10)+'px';
+    sel.style.top=((y-py)*zoom+py+10)+'px';
+    document.body.appendChild(sel);
+    sel.onchange=()=>{document.body.removeChild(sel);doAdd(sel.value,x,y);};
+    sel.onblur=()=>{if(document.body.contains(sel))document.body.removeChild(sel);};
+    sel.focus();
   }
-  let sz=60;
+}
+
+function doAdd(nm,x,y){
+  let sz=80;
+  let defLabels={'Resistor':['1','2'],'Capacitor':['1','2'],'Polarized-Capacitor':['+','-'],
+    'Inductor':['1','2'],'Diode':['+','-'],'LED':['+','-'],'Zener-Diode':['+','-'],
+    'V-DC':['+','-'],'V-AC':['~','~'],'Battery':['+','-'],'GND':['GND'],
+    'Switch':['1','2'],'Speaker':['1','2'],'BJT':['B','E','C'],'FET':['G','S','D'],
+    'Motor':['+','-'],'Relay':['C1','C2','NO','COM'],'Transformer':['P1','P2','S1','S2'],
+    'Op-Amp':['-','+','OUT','V+','V-'],'IC':['-','+','OUT']};
+  let pre={'Resistor':'R','Potentiometer':'R','Capacitor':'C','Polarized-Capacitor':'C',
+    'Inductor':'L','Diode':'D','LED':'L','Zener-Diode':'ZD','V-DC':'V','V-AC':'V',
+    'I-DC':'I','I-AC':'I','Battery':'BAT','BJT':'Q','FET':'Q','GND':'GND',
+    'Switch':'SW','Relay':'RL','Transformer':'T','Op-Amp':'U','IC':'U',
+    'NE555':'U','Speaker':'SP','Motor':'M','Lamp':'LMP','Terminal':'T'};
   let dl=defLabels[nm]||['1','2'];
   let ports=[];
   for(let pi=0;pi<dl.length;pi++){
-    // place ports evenly around bbox
     let rx=0.5, ry=0.5;
     if(dl.length===1){rx=0.5;ry=0;}
     else if(dl.length===2){rx=pi;ry=0.5;}
@@ -268,11 +299,6 @@ function addComponent(x,y){
     }
     ports.push([x+Math.round(rx*sz), y+Math.round(ry*sz)]);
   }
-  let pre={'Resistor':'R','Potentiometer':'R','Capacitor':'C','Polarized-Capacitor':'C',
-    'Inductor':'L','Diode':'D','LED':'L','Zener-Diode':'ZD','V-DC':'V','V-AC':'V',
-    'I-DC':'I','I-AC':'I','Battery':'BAT','BJT':'Q','FET':'Q','GND':'GND',
-    'Switch':'SW','Relay':'RL','Transformer':'T','Op-Amp':'U','IC':'U',
-    'NE555':'U','Speaker':'SP','Motor':'M','Lamp':'LMP','Terminal':'T'};
   let preFix=pre[nm]||nm[0];
   let n=0; for(let c of data.components) if(c.designator.startsWith(preFix)) n++;
   let c={idx:data.components.length, name:nm, raw_name:'manual', designator:preFix+(n+1),
