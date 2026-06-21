@@ -337,7 +337,7 @@ function doAdd(nm){
   data.components.push(c);
   // also auto-add to groups if user has active wiring
   openEditor(c.idx);
-  document.getElementById('status').textContent='Added '+c.designator+' ('+nm+') — resize with Shift+Alt+drag';
+  document.getElementById('status').textContent='Added '+c.designator+' ('+nm+') — Shift+拖=移动，Ctrl+拖右下角=缩放';
   draw();upd();
 }
 
