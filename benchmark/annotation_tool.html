@@ -69,7 +69,8 @@ button:hover{background:#6a4c9e}
 <div class="toolbar">
 <button onclick="prev()">Prev</button><button onclick="next()">Next</button>
 <button onclick="zIn()">+</button><button onclick="zOut()">-</button><button onclick="zFit()">Fit</button><button onclick="z100()">100%</button>
-<span style="font-size:12px;color:#aaa;margin-left:8px">双击元件框→编辑 | 右键端口→移动 | 中键拖拽</span>
+<button onclick="addComponent()" style="background:#c0392b">+ Add Comp</button>
+<span style="font-size:12px;color:#aaa;margin-left:8px">双击编辑 | 右键空白添加元件 | S=保存 GT</span>
 <span id="pos" style="margin-left:12px;font-size:12px;color:#aaa"></span>
 </div>
 <div class="canvas-wrap" id="wrap"><canvas id="c"></canvas></div>
@@ -205,11 +206,14 @@ const cv=document.getElementById('c'), wrap=document.getElementById('wrap');
 // Double-click on component bbox -> open editor
 // Right-click on port -> move it
 cv.onmousedown=e=>{
-  if(e.button===2){  // right click
+  if(e.button===2){  // right click: add new component on blank area
     e.preventDefault();
     let{x,y}=s2i(e.offsetX,e.offsetY);
-    let p=findP(x,y);
-    if(p){document.getElementById('status').textContent='Right-clicked '+p.name+'.'+p.label; selP=p; draw();}
+    let ci=findComp(x,y);
+    if(ci<0){addComponent(x,y);} else {
+      let p=findP(x,y);
+      if(p){document.getElementById('status').textContent='Right-clicked '+p.name+'.'+p.label; selP=p; draw();}
+    }
     return;
   }
   if(e.button===0){
@@ -236,13 +240,47 @@ cv.ondblclick=e=>{
 };
 cv.oncontextmenu=e=>e.preventDefault();
 
-function findComp(mx,my){
-  if(!data)return -1;
-  for(let c of data.components){
-    let[x1,y1,x2,y2]=c.xyxy;
-    if(mx>=x1&&mx<=x2&&my>=y1&&my<=y2)return c.idx;
+function addComponent(x,y){
+  if(!data) return;
+  let defLabels={'Resistor':['1','2'],'Capacitor':['1','2'],'Polarized-Capacitor':['+','-'],
+    'Inductor':['1','2'],'Diode':['+','-'],'LED':['+','-'],'Zener-Diode':['+','-'],
+    'V-DC':['+','-'],'V-AC':['~','~'],'Battery':['+','-'],'GND':['GND'],
+    'Switch':['1','2'],'Speaker':['1','2'],'BJT':['B','E','C'],'FET':['G','S','D'],
+    'Motor':['+','-'],'Relay':['C1','C2','NO','COM'],'Transformer':['P1','P2','S1','S2'],
+    'Op-Amp':['-','+','OUT','V+','V-'],'IC':['-','+','OUT']};
+  let nm=prompt('Component name:','Resistor');
+  if(!nm) return;
+  if(!x){
+    // toolbar button: prompt for position
+    x=parseInt(prompt('x (left):','100')); y=parseInt(prompt('y (top):','100'));
+    if(!x||!y) return;
   }
-  return -1;
+  let sz=60;
+  let dl=defLabels[nm]||['1','2'];
+  let ports=[];
+  for(let pi=0;pi<dl.length;pi++){
+    // place ports evenly around bbox
+    let rx=0.5, ry=0.5;
+    if(dl.length===1){rx=0.5;ry=0;}
+    else if(dl.length===2){rx=pi;ry=0.5;}
+    else if(dl.length===3){
+      if(pi===0){rx=0;ry=0.5;}else if(pi===1){rx=0.7;ry=0;}else{rx=0.7;ry=1;}
+    }
+    ports.push([x+Math.round(rx*sz), y+Math.round(ry*sz)]);
+  }
+  let pre={'Resistor':'R','Potentiometer':'R','Capacitor':'C','Polarized-Capacitor':'C',
+    'Inductor':'L','Diode':'D','LED':'L','Zener-Diode':'ZD','V-DC':'V','V-AC':'V',
+    'I-DC':'I','I-AC':'I','Battery':'BAT','BJT':'Q','FET':'Q','GND':'GND',
+    'Switch':'SW','Relay':'RL','Transformer':'T','Op-Amp':'U','IC':'U',
+    'NE555':'U','Speaker':'SP','Motor':'M','Lamp':'LMP','Terminal':'T'};
+  let preFix=pre[nm]||nm[0];
+  let n=0; for(let c of data.components) if(c.designator.startsWith(preFix)) n++;
+  let c={idx:data.components.length, name:nm, raw_name:'manual', designator:preFix+(n+1),
+    xyxy:[x,y,x+sz,y+sz], ports:ports, labels:[...dl], conf:1.0, manual:true};
+  data.components.push(c);
+  openEditor(c.idx);
+  document.getElementById('status').textContent='Added '+c.designator+' ('+nm+')';
+  draw();upd();
 }
 
 cv.onmousemove=e=>{
