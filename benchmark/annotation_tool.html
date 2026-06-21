@@ -309,6 +309,15 @@ function doAdd(nm,x,y){
   draw();upd();
 }
 
+function findComp(mx,my){
+  if(!data)return -1;
+  for(let c of data.components){
+    let[x1,y1,x2,y2]=c.xyxy;
+    if(mx>=x1&&mx<=x2&&my>=y1&&my<=y2)return c.idx;
+  }
+  return -1;
+}
+
 cv.onmousemove=e=>{
   if(drag){px=startPX+(e.clientX-dragX);py=startPY+(e.clientY-dragY);draw();return}
   let{x,y}=s2i(e.offsetX,e.offsetY);
