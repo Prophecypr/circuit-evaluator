@@ -75,8 +75,9 @@ def serve_file(filename):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8765))
-    print(f"Serving at http://localhost:{port}")
-    print(f"Images: {ROOT}")
-    print(f"Detections: {DET_DIR}")
-    print(f"Fixes: {FIX_DIR}")
+    print(f"\n  http://127.0.0.1:{port}")
+    print(f"  Images:    {ROOT}")
+    print(f"  Detections:{DET_DIR}")
+    print(f"  Fixes:     {FIX_DIR}")
+    print()
     app.run(host="127.0.0.1", port=port, debug=False)
