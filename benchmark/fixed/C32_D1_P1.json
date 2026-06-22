@@ -1,0 +1,228 @@
+{
+  "components": [
+    {
+      "conf": 0.9738053679466248,
+      "designator": "ZD1",
+      "idx": 0,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Zener-Diode",
+      "ports": [
+        [
+          846,
+          670
+        ],
+        [
+          844,
+          605
+        ]
+      ],
+      "raw_name": "diode.zener",
+      "xyxy": [
+        772,
+        605,
+        900,
+        670
+      ]
+    },
+    {
+      "conf": 0.923646867275238,
+      "designator": "SP1",
+      "idx": 1,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Speaker",
+      "ports": [
+        [
+          800,
+          175
+        ],
+        [
+          823,
+          291
+        ]
+      ],
+      "raw_name": "speaker",
+      "xyxy": [
+        782,
+        175,
+        873,
+        291
+      ]
+    },
+    {
+      "conf": 0.9190643429756165,
+      "designator": "BAT1",
+      "idx": 2,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Battery",
+      "ports": [
+        [
+          1273,
+          434
+        ],
+        [
+          1277,
+          518
+        ]
+      ],
+      "raw_name": "voltage.battery",
+      "xyxy": [
+        1213,
+        434,
+        1341,
+        518
+      ]
+    },
+    {
+      "conf": 0.9184364080429077,
+      "designator": "Q1",
+      "idx": 3,
+      "labels": [
+        "B",
+        "E",
+        "C"
+      ],
+      "name": "BJT",
+      "ports": [
+        [
+          732,
+          445
+        ],
+        [
+          832,
+          508
+        ],
+        [
+          827,
+          374
+        ]
+      ],
+      "raw_name": "transistor.bjt",
+      "xyxy": [
+        732,
+        374,
+        862,
+        508
+      ]
+    },
+    {
+      "conf": 0.8997312188148499,
+      "designator": "SW1",
+      "idx": 4,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Switch",
+      "ports": [
+        [
+          1239,
+          202
+        ],
+        [
+          1259,
+          293
+        ]
+      ],
+      "raw_name": "switch",
+      "xyxy": [
+        1198,
+        202,
+        1274,
+        293
+      ]
+    },
+    {
+      "conf": 0.8963514566421509,
+      "designator": "R1",
+      "idx": 5,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          396,
+          517
+        ],
+        [
+          381,
+          637
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        361,
+        517,
+        405,
+        637
+      ]
+    },
+    {
+      "conf": 0.8772703409194946,
+      "designator": "R2",
+      "idx": 6,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          487,
+          447
+        ],
+        [
+          579,
+          454
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        487,
+        431,
+        579,
+        464
+      ]
+    },
+    {
+      "conf": 0.8680452704429626,
+      "designator": "R3",
+      "idx": 7,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          397,
+          251
+        ],
+        [
+          397,
+          343
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        372,
+        251,
+        422,
+        343
+      ]
+    }
+  ],
+  "height": 1200,
+  "image": "C32_D1_P1.jpg",
+  "width": 1600
+}

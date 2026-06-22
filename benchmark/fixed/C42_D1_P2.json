@@ -1,0 +1,336 @@
+{
+  "components": [
+    {
+      "conf": 0.990646243095398,
+      "designator": "BAT1",
+      "idx": 0,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Battery",
+      "ports": [
+        [
+          421,
+          521
+        ],
+        [
+          421,
+          587
+        ]
+      ],
+      "raw_name": "voltage.battery",
+      "xyxy": [
+        181,
+        431,
+        421,
+        700
+      ]
+    },
+    {
+      "conf": 0.9776041507720947,
+      "designator": "U1",
+      "idx": 1,
+      "labels": [
+        "-",
+        "+",
+        "OUT",
+        "V+",
+        "V-"
+      ],
+      "name": "Op-Amp",
+      "ports": [
+        [
+          860,
+          523
+        ],
+        [
+          860,
+          661
+        ],
+        [
+          1075,
+          600
+        ],
+        [
+          980,
+          466
+        ],
+        [
+          995,
+          719
+        ]
+      ],
+      "raw_name": "operational_amplifier",
+      "xyxy": [
+        860,
+        466,
+        1075,
+        719
+      ]
+    },
+    {
+      "conf": 0.8956027626991272,
+      "designator": "T1",
+      "idx": 2,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          1577,
+          843
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        1537,
+        820,
+        1617,
+        866
+      ]
+    },
+    {
+      "conf": 0.8788548707962036,
+      "designator": "T2",
+      "idx": 3,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          1545,
+          296
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        1509,
+        275,
+        1582,
+        318
+      ]
+    },
+    {
+      "conf": 0.8767863512039185,
+      "designator": "BAT2",
+      "idx": 4,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Battery",
+      "ports": [
+        [
+          1390,
+          579
+        ],
+        [
+          1397,
+          656
+        ]
+      ],
+      "raw_name": "voltage.battery",
+      "xyxy": [
+        1342,
+        579,
+        1439,
+        656
+      ]
+    },
+    {
+      "conf": 0.8681809306144714,
+      "designator": "ZD1",
+      "idx": 5,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Zener-Diode",
+      "ports": [
+        [
+          696,
+          975
+        ],
+        [
+          601,
+          979
+        ]
+      ],
+      "raw_name": "diode.zener",
+      "xyxy": [
+        601,
+        914,
+        696,
+        1039
+      ]
+    },
+    {
+      "conf": 0.8662081956863403,
+      "designator": "R1",
+      "idx": 6,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          740,
+          703
+        ],
+        [
+          740,
+          823
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        719,
+        703,
+        761,
+        823
+      ]
+    },
+    {
+      "conf": 0.8573381304740906,
+      "designator": "R2",
+      "idx": 7,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          602,
+          326
+        ],
+        [
+          602,
+          435
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        581,
+        326,
+        624,
+        435
+      ]
+    },
+    {
+      "conf": 0.8494735360145569,
+      "designator": "R3",
+      "idx": 8,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          593,
+          626
+        ],
+        [
+          593,
+          728
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        571,
+        626,
+        616,
+        728
+      ]
+    },
+    {
+      "conf": 0.8420374989509583,
+      "designator": "L1",
+      "idx": 9,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "LED",
+      "ports": [
+        [
+          1150,
+          486
+        ],
+        [
+          1107,
+          598
+        ]
+      ],
+      "raw_name": "diode.light_emitting",
+      "xyxy": [
+        1107,
+        486,
+        1214,
+        639
+      ]
+    },
+    {
+      "conf": 0.8376673460006714,
+      "designator": "R4",
+      "idx": 10,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1142,
+          332
+        ],
+        [
+          1142,
+          452
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1120,
+        332,
+        1165,
+        452
+      ]
+    },
+    {
+      "conf": 0.8295527100563049,
+      "designator": "R5",
+      "idx": 11,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          614,
+          850
+        ],
+        [
+          713,
+          850
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        614,
+        831,
+        713,
+        870
+      ]
+    }
+  ],
+  "height": 1500,
+  "image": "C42_D1_P2.jpg",
+  "width": 2000
+}

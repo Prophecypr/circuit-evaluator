@@ -1,0 +1,326 @@
+{
+  "components": [
+    {
+      "conf": 0.9642103910446167,
+      "designator": "Q1",
+      "idx": 0,
+      "labels": [
+        "B",
+        "E",
+        "C"
+      ],
+      "name": "BJT",
+      "ports": [
+        [
+          1784,
+          1732
+        ],
+        [
+          2147,
+          1945
+        ],
+        [
+          2169,
+          1510
+        ]
+      ],
+      "raw_name": "transistor.bjt",
+      "xyxy": [
+        1784,
+        1496,
+        2169,
+        1945
+      ]
+    },
+    {
+      "conf": 0.9616149067878723,
+      "designator": "V1",
+      "idx": 1,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "V-DC",
+      "ports": [
+        [
+          536,
+          1506
+        ],
+        [
+          533,
+          1820
+        ]
+      ],
+      "raw_name": "voltage.dc",
+      "xyxy": [
+        410,
+        1506,
+        694,
+        1820
+      ]
+    },
+    {
+      "conf": 0.9022553563117981,
+      "designator": "R1",
+      "idx": 2,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1329,
+          625
+        ],
+        [
+          1344,
+          904
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1247,
+        625,
+        1385,
+        904
+      ]
+    },
+    {
+      "conf": 0.899478554725647,
+      "designator": "C1",
+      "idx": 3,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Capacitor",
+      "ports": [
+        [
+          986,
+          1589
+        ],
+        [
+          979,
+          1703
+        ]
+      ],
+      "raw_name": "capacitor.unpolarized",
+      "xyxy": [
+        848,
+        1589,
+        1135,
+        1703
+      ]
+    },
+    {
+      "conf": 0.8933096528053284,
+      "designator": "R2",
+      "idx": 4,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          2179,
+          2138
+        ],
+        [
+          2161,
+          2438
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        2059,
+        2138,
+        2237,
+        2438
+      ]
+    },
+    {
+      "conf": 0.8899535536766052,
+      "designator": "T1",
+      "idx": 5,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          3578,
+          1755
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        3520,
+        1698,
+        3637,
+        1813
+      ]
+    },
+    {
+      "conf": 0.8817780017852783,
+      "designator": "L1",
+      "idx": 6,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Inductor",
+      "ports": [
+        [
+          2175,
+          687
+        ],
+        [
+          2165,
+          1052
+        ]
+      ],
+      "raw_name": "inductor",
+      "xyxy": [
+        2034,
+        687,
+        2201,
+        1052
+      ]
+    },
+    {
+      "conf": 0.8809546828269958,
+      "designator": "C2",
+      "idx": 7,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Capacitor",
+      "ports": [
+        [
+          1689,
+          2034
+        ],
+        [
+          1687,
+          2145
+        ]
+      ],
+      "raw_name": "capacitor.unpolarized",
+      "xyxy": [
+        1580,
+        2034,
+        1829,
+        2145
+      ]
+    },
+    {
+      "conf": 0.877723753452301,
+      "designator": "R3",
+      "idx": 8,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1313,
+          1951
+        ],
+        [
+          1313,
+          2219
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1243,
+        1951,
+        1384,
+        2219
+      ]
+    },
+    {
+      "conf": 0.8503800630569458,
+      "designator": "C3",
+      "idx": 9,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Capacitor",
+      "ports": [
+        [
+          2424,
+          677
+        ],
+        [
+          2420,
+          789
+        ]
+      ],
+      "raw_name": "capacitor.unpolarized",
+      "xyxy": [
+        2297,
+        677,
+        2526,
+        789
+      ]
+    },
+    {
+      "conf": 0.838660717010498,
+      "designator": "T2",
+      "idx": 10,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          3593,
+          1489
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        3530,
+        1435,
+        3657,
+        1543
+      ]
+    },
+    {
+      "conf": 0.8224884867668152,
+      "designator": "C4",
+      "idx": 11,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Capacitor",
+      "ports": [
+        [
+          2412,
+          1073
+        ],
+        [
+          2430,
+          1186
+        ]
+      ],
+      "raw_name": "capacitor.unpolarized",
+      "xyxy": [
+        2254,
+        1073,
+        2554,
+        1186
+      ]
+    }
+  ],
+  "height": 3120,
+  "image": "C19_D1_P2.jpg",
+  "width": 4160
+}

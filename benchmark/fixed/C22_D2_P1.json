@@ -1,0 +1,282 @@
+{
+  "components": [
+    {
+      "conf": 0.9928876757621765,
+      "designator": "V1",
+      "idx": 0,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "V-DC",
+      "ports": [
+        [
+          1123,
+          1068
+        ],
+        [
+          1123,
+          1503
+        ]
+      ],
+      "raw_name": "voltage.dc",
+      "xyxy": [
+        929,
+        1068,
+        1317,
+        1503
+      ]
+    },
+    {
+      "conf": 0.9526671767234802,
+      "designator": "Q1",
+      "idx": 1,
+      "labels": [
+        "B",
+        "E",
+        "C"
+      ],
+      "name": "BJT",
+      "ports": [
+        [
+          1555,
+          1481
+        ],
+        [
+          1932,
+          1749
+        ],
+        [
+          2038,
+          1212
+        ]
+      ],
+      "raw_name": "transistor.bjt",
+      "xyxy": [
+        1555,
+        1212,
+        2063,
+        1749
+      ]
+    },
+    {
+      "conf": 0.9476351141929626,
+      "designator": "C1",
+      "idx": 2,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Polarized-Capacitor",
+      "ports": [
+        [
+          2678,
+          2172
+        ],
+        [
+          2495,
+          2172
+        ]
+      ],
+      "raw_name": "capacitor.polarized",
+      "xyxy": [
+        2495,
+        2063,
+        2678,
+        2282
+      ]
+    },
+    {
+      "conf": 0.9441301822662354,
+      "designator": "C2",
+      "idx": 3,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Polarized-Capacitor",
+      "ports": [
+        [
+          1533,
+          2108
+        ],
+        [
+          1528,
+          1860
+        ]
+      ],
+      "raw_name": "capacitor.polarized",
+      "xyxy": [
+        1405,
+        1860,
+        1651,
+        2108
+      ]
+    },
+    {
+      "conf": 0.936943531036377,
+      "designator": "L1",
+      "idx": 4,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "LED",
+      "ports": [
+        [
+          2226,
+          909
+        ],
+        [
+          2239,
+          1118
+        ]
+      ],
+      "raw_name": "diode.light_emitting",
+      "xyxy": [
+        2109,
+        909,
+        2467,
+        1118
+      ]
+    },
+    {
+      "conf": 0.919009268283844,
+      "designator": "C3",
+      "idx": 5,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Polarized-Capacitor",
+      "ports": [
+        [
+          2764,
+          1208
+        ],
+        [
+          2564,
+          1208
+        ]
+      ],
+      "raw_name": "capacitor.polarized",
+      "xyxy": [
+        2564,
+        1097,
+        2764,
+        1319
+      ]
+    },
+    {
+      "conf": 0.8749427199363708,
+      "designator": "R1",
+      "idx": 6,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1513,
+          2231
+        ],
+        [
+          1513,
+          2563
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1437,
+        2231,
+        1589,
+        2563
+      ]
+    },
+    {
+      "conf": 0.8728806376457214,
+      "designator": "R2",
+      "idx": 7,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          2207,
+          522
+        ],
+        [
+          2207,
+          842
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        2118,
+        522,
+        2296,
+        842
+      ]
+    },
+    {
+      "conf": 0.8644265532493591,
+      "designator": "R3",
+      "idx": 8,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          2922,
+          2254
+        ],
+        [
+          2922,
+          2580
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        2851,
+        2254,
+        2993,
+        2580
+      ]
+    },
+    {
+      "conf": 0.8603991866111755,
+      "designator": "R4",
+      "idx": 9,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1503,
+          510
+        ],
+        [
+          1503,
+          860
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1421,
+        510,
+        1585,
+        860
+      ]
+    }
+  ],
+  "height": 3120,
+  "image": "C22_D2_P1.jpg",
+  "width": 4160
+}

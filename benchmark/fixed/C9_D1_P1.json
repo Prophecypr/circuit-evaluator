@@ -1,0 +1,142 @@
+{
+  "components": [
+    {
+      "conf": 0.9133408069610596,
+      "designator": "R1",
+      "idx": 0,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          3159,
+          676
+        ],
+        [
+          3208,
+          977
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        3073,
+        676,
+        3245,
+        977
+      ]
+    },
+    {
+      "conf": 0.9002809524536133,
+      "designator": "L1",
+      "idx": 1,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "LED",
+      "ports": [
+        [
+          3210,
+          1248
+        ],
+        [
+          3223,
+          1475
+        ]
+      ],
+      "raw_name": "diode.light_emitting",
+      "xyxy": [
+        3080,
+        1248,
+        3549,
+        1475
+      ]
+    },
+    {
+      "conf": 0.8716999888420105,
+      "designator": "R2",
+      "idx": 2,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1352,
+          543
+        ],
+        [
+          1761,
+          585
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1352,
+        441,
+        1761,
+        646
+      ]
+    },
+    {
+      "conf": 0.833442747592926,
+      "designator": "V1",
+      "idx": 3,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "V-DC",
+      "ports": [
+        [
+          681,
+          811
+        ],
+        [
+          681,
+          1363
+        ]
+      ],
+      "raw_name": "voltage.dc",
+      "xyxy": [
+        385,
+        811,
+        977,
+        1363
+      ]
+    },
+    {
+      "conf": 0.40382054448127747,
+      "designator": "C2",
+      "idx": 4,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Polarized-Capacitor",
+      "ports": [
+        [
+          2353,
+          946
+        ],
+        [
+          2353,
+          1214
+        ]
+      ],
+      "raw_name": "capacitor.polarized",
+      "xyxy": [
+        2153,
+        946,
+        2553,
+        1214
+      ]
+    }
+  ],
+  "height": 3024,
+  "image": "C9_D1_P1.jpg",
+  "width": 4032
+}

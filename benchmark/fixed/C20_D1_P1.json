@@ -1,0 +1,115 @@
+{
+  "components": [
+    {
+      "conf": 0.9942811727523804,
+      "designator": "V1",
+      "idx": 0,
+      "labels": [
+        "~",
+        "~"
+      ],
+      "name": "V-AC",
+      "ports": [
+        [
+          1131,
+          1430
+        ],
+        [
+          1131,
+          2063
+        ]
+      ],
+      "raw_name": "voltage.ac",
+      "xyxy": [
+        693,
+        1430,
+        1402,
+        2063
+      ]
+    },
+    {
+      "conf": 0.9090760350227356,
+      "designator": "C1",
+      "idx": 1,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Capacitor",
+      "ports": [
+        [
+          2249,
+          1508
+        ],
+        [
+          2251,
+          1719
+        ]
+      ],
+      "raw_name": "capacitor.unpolarized",
+      "xyxy": [
+        1995,
+        1508,
+        2462,
+        1719
+      ]
+    },
+    {
+      "conf": 0.8775355219841003,
+      "designator": "R1",
+      "idx": 2,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1528,
+          859
+        ],
+        [
+          2048,
+          859
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1528,
+        758,
+        2048,
+        961
+      ]
+    },
+    {
+      "conf": 0.8528265357017517,
+      "designator": "L1",
+      "idx": 3,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Inductor",
+      "ports": [
+        [
+          2974,
+          1266
+        ],
+        [
+          2964,
+          1883
+        ]
+      ],
+      "raw_name": "inductor",
+      "xyxy": [
+        2765,
+        1266,
+        3006,
+        1883
+      ]
+    }
+  ],
+  "height": 3120,
+  "image": "C20_D1_P1.jpg",
+  "width": 4160
+}

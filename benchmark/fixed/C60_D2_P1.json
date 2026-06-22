@@ -1,0 +1,218 @@
+{
+  "components": [
+    {
+      "conf": 0.975324273109436,
+      "designator": "U1",
+      "idx": 0,
+      "labels": [
+        "-",
+        "+",
+        "OUT",
+        "V+",
+        "V-"
+      ],
+      "name": "Op-Amp",
+      "ports": [
+        [
+          617,
+          301
+        ],
+        [
+          617,
+          222
+        ],
+        [
+          807,
+          249
+        ],
+        [
+          712,
+          176
+        ],
+        [
+          712,
+          344
+        ]
+      ],
+      "raw_name": "operational_amplifier",
+      "xyxy": [
+        617,
+        176,
+        807,
+        344
+      ]
+    },
+    {
+      "conf": 0.9049463868141174,
+      "designator": "R1",
+      "idx": 1,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          414,
+          300
+        ],
+        [
+          488,
+          300
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        414,
+        283,
+        488,
+        318
+      ]
+    },
+    {
+      "conf": 0.8969712853431702,
+      "designator": "C1",
+      "idx": 2,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Capacitor",
+      "ports": [
+        [
+          677,
+          438
+        ],
+        [
+          705,
+          435
+        ]
+      ],
+      "raw_name": "capacitor.unpolarized",
+      "xyxy": [
+        677,
+        411,
+        705,
+        457
+      ]
+    },
+    {
+      "conf": 0.8927739262580872,
+      "designator": "R2",
+      "idx": 3,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          664,
+          380
+        ],
+        [
+          738,
+          380
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        664,
+        362,
+        738,
+        398
+      ]
+    },
+    {
+      "conf": 0.8912076354026794,
+      "designator": "T1",
+      "idx": 4,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          242,
+          293
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        227,
+        280,
+        258,
+        307
+      ]
+    },
+    {
+      "conf": 0.8872798085212708,
+      "designator": "T2",
+      "idx": 5,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          925,
+          241
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        914,
+        228,
+        937,
+        254
+      ]
+    },
+    {
+      "conf": 0.882095456123352,
+      "designator": "T3",
+      "idx": 6,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          253,
+          491
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        236,
+        477,
+        270,
+        505
+      ]
+    },
+    {
+      "conf": 0.8620251417160034,
+      "designator": "T4",
+      "idx": 7,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          920,
+          474
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        907,
+        460,
+        933,
+        489
+      ]
+    }
+  ],
+  "height": 810,
+  "image": "C60_D2_P1.jpg",
+  "width": 1080
+}

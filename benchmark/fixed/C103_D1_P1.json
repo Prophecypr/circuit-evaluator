@@ -1,0 +1,298 @@
+{
+  "components": [
+    {
+      "conf": 0.8212570548057556,
+      "designator": "Q1",
+      "idx": 0,
+      "labels": [
+        "B",
+        "E",
+        "C"
+      ],
+      "name": "BJT",
+      "ports": [
+        [
+          636,
+          896
+        ],
+        [
+          673,
+          919
+        ],
+        [
+          672,
+          874
+        ]
+      ],
+      "raw_name": "transistor.bjt",
+      "xyxy": [
+        636,
+        874,
+        675,
+        919
+      ]
+    },
+    {
+      "conf": 0.7493112087249756,
+      "designator": "R1",
+      "idx": 1,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          274,
+          951
+        ],
+        [
+          274,
+          979
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        266,
+        951,
+        287,
+        979
+      ]
+    },
+    {
+      "conf": 0.6303754448890686,
+      "designator": "T1",
+      "idx": 2,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          824,
+          1029
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        824,
+        1020,
+        841,
+        1036
+      ]
+    },
+    {
+      "conf": 0.5986818671226501,
+      "designator": "Q2",
+      "idx": 3,
+      "labels": [
+        "B",
+        "E",
+        "C"
+      ],
+      "name": "BJT",
+      "ports": [
+        [
+          240,
+          883
+        ],
+        [
+          271,
+          916
+        ],
+        [
+          280,
+          856
+        ]
+      ],
+      "raw_name": "transistor.bjt",
+      "xyxy": [
+        240,
+        854,
+        280,
+        916
+      ]
+    },
+    {
+      "conf": 0.5866410732269287,
+      "designator": "T2",
+      "idx": 4,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          167,
+          1020
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        145,
+        1009,
+        167,
+        1030
+      ]
+    },
+    {
+      "conf": 0.4507572054862976,
+      "designator": "T3",
+      "idx": 5,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          822,
+          856
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        822,
+        849,
+        837,
+        869
+      ]
+    },
+    {
+      "conf": 0.42799654603004456,
+      "designator": "C1",
+      "idx": 6,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Polarized-Capacitor",
+      "ports": [
+        [
+          401,
+          858
+        ],
+        [
+          423,
+          858
+        ]
+      ],
+      "raw_name": "capacitor.unpolarized",
+      "xyxy": [
+        401,
+        846,
+        423,
+        871
+      ]
+    },
+    {
+      "idx": 7,
+      "name": "Terminal",
+      "raw_name": "manual",
+      "designator": "T4",
+      "xyxy": [
+        154,
+        874,
+        174,
+        894
+      ],
+      "ports": [
+        [
+          174,
+          884
+        ]
+      ],
+      "labels": [
+        "T"
+      ],
+      "conf": 1,
+      "manual": true
+    },
+    {
+      "idx": 8,
+      "name": "Resistor",
+      "raw_name": "manual",
+      "designator": "R2",
+      "xyxy": [
+        519,
+        942,
+        546,
+        969
+      ],
+      "ports": [
+        [
+          531,
+          942
+        ],
+        [
+          528,
+          969
+        ]
+      ],
+      "labels": [
+        "1",
+        "2"
+      ],
+      "conf": 1,
+      "manual": true
+    },
+    {
+      "idx": 9,
+      "name": "Resistor",
+      "raw_name": "manual",
+      "designator": "R3",
+      "xyxy": [
+        663,
+        938,
+        686,
+        961
+      ],
+      "ports": [
+        [
+          675,
+          938
+        ],
+        [
+          673,
+          961
+        ]
+      ],
+      "labels": [
+        "1",
+        "2"
+      ],
+      "conf": 1,
+      "manual": true
+    },
+    {
+      "idx": 10,
+      "name": "Polarized-Capacitor",
+      "raw_name": "manual",
+      "designator": "C2",
+      "xyxy": [
+        729,
+        840,
+        760,
+        873
+      ],
+      "ports": [
+        [
+          729,
+          855
+        ],
+        [
+          760,
+          855
+        ]
+      ],
+      "labels": [
+        "+",
+        "-"
+      ],
+      "conf": 1,
+      "manual": true
+    }
+  ],
+  "height": 2016,
+  "image": "C103_D1_P1.jpg",
+  "width": 1134
+}

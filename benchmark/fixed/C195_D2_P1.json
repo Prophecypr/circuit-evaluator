@@ -1,0 +1,536 @@
+{
+  "components": [
+    {
+      "conf": 0.9243771433830261,
+      "designator": "C1",
+      "idx": 0,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Polarized-Capacitor",
+      "ports": [
+        [
+          1508,
+          1777
+        ],
+        [
+          1506,
+          1885
+        ]
+      ],
+      "raw_name": "capacitor.polarized",
+      "xyxy": [
+        1445,
+        1777,
+        1555,
+        1885
+      ]
+    },
+    {
+      "conf": 0.916445791721344,
+      "designator": "SW1",
+      "idx": 1,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Switch",
+      "ports": [
+        [
+          679,
+          1965
+        ],
+        [
+          828,
+          1953
+        ]
+      ],
+      "raw_name": "switch",
+      "xyxy": [
+        679,
+        1871,
+        828,
+        1982
+      ]
+    },
+    {
+      "conf": 0.8952842354774475,
+      "designator": "BAT1",
+      "idx": 2,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Battery",
+      "ports": [
+        [
+          3267,
+          382
+        ],
+        [
+          3269,
+          494
+        ]
+      ],
+      "raw_name": "voltage.battery",
+      "xyxy": [
+        3207,
+        382,
+        3317,
+        494
+      ]
+    },
+    {
+      "conf": 0.8928201794624329,
+      "designator": "Q1",
+      "idx": 3,
+      "labels": [
+        "B",
+        "E",
+        "C"
+      ],
+      "name": "BJT",
+      "ports": [
+        [
+          2563,
+          889
+        ],
+        [
+          2642,
+          812
+        ],
+        [
+          2630,
+          976
+        ]
+      ],
+      "raw_name": "transistor.bjt",
+      "xyxy": [
+        2563,
+        812,
+        2660,
+        976
+      ]
+    },
+    {
+      "conf": 0.8788522481918335,
+      "designator": "R1",
+      "idx": 4,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1505,
+          1054
+        ],
+        [
+          1505,
+          1231
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1470,
+        1054,
+        1541,
+        1231
+      ]
+    },
+    {
+      "conf": 0.8631454110145569,
+      "designator": "Q2",
+      "idx": 5,
+      "labels": [
+        "B",
+        "E",
+        "C"
+      ],
+      "name": "BJT",
+      "ports": [
+        [
+          1862,
+          1694
+        ],
+        [
+          1927,
+          1766
+        ],
+        [
+          1941,
+          1620
+        ]
+      ],
+      "raw_name": "transistor.bjt",
+      "xyxy": [
+        1862,
+        1620,
+        1955,
+        1766
+      ]
+    },
+    {
+      "conf": 0.8546475768089294,
+      "designator": "C2",
+      "idx": 6,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Polarized-Capacitor",
+      "ports": [
+        [
+          1210,
+          2016
+        ],
+        [
+          1204,
+          2118
+        ]
+      ],
+      "raw_name": "capacitor.polarized",
+      "xyxy": [
+        1157,
+        2016,
+        1287,
+        2118
+      ]
+    },
+    {
+      "conf": 0.8534042835235596,
+      "designator": "C3",
+      "idx": 7,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Polarized-Capacitor",
+      "ports": [
+        [
+          2732,
+          1215
+        ],
+        [
+          2734,
+          1299
+        ]
+      ],
+      "raw_name": "capacitor.polarized",
+      "xyxy": [
+        2693,
+        1215,
+        2791,
+        1299
+      ]
+    },
+    {
+      "conf": 0.8391827344894409,
+      "designator": "R2",
+      "idx": 8,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          2200,
+          888
+        ],
+        [
+          2371,
+          887
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        2200,
+        850,
+        2371,
+        914
+      ]
+    },
+    {
+      "conf": 0.8333721160888672,
+      "designator": "R3",
+      "idx": 9,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          2439,
+          582
+        ],
+        [
+          2445,
+          783
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        2404,
+        582,
+        2475,
+        783
+      ]
+    },
+    {
+      "conf": 0.8293362855911255,
+      "designator": "R4",
+      "idx": 10,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          984,
+          1949
+        ],
+        [
+          1137,
+          1949
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        984,
+        1916,
+        1137,
+        1983
+      ]
+    },
+    {
+      "conf": 0.8248818516731262,
+      "designator": "R5",
+      "idx": 11,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1198,
+          1346
+        ],
+        [
+          1198,
+          1536
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1161,
+        1346,
+        1235,
+        1536
+      ]
+    },
+    {
+      "conf": 0.8017828464508057,
+      "designator": "R6",
+      "idx": 12,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          909,
+          1722
+        ],
+        [
+          920,
+          1878
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        878,
+        1722,
+        940,
+        1878
+      ]
+    },
+    {
+      "conf": 0.7981618642807007,
+      "designator": "SP1",
+      "idx": 13,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Speaker",
+      "ports": [
+        [
+          2731,
+          1527
+        ],
+        [
+          2728,
+          1716
+        ]
+      ],
+      "raw_name": "speaker",
+      "xyxy": [
+        2708,
+        1527,
+        2839,
+        1716
+      ]
+    },
+    {
+      "conf": 0.7772268652915955,
+      "designator": "R7",
+      "idx": 14,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          2629,
+          1195
+        ],
+        [
+          2620,
+          1392
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        2583,
+        1195,
+        2657,
+        1392
+      ]
+    },
+    {
+      "conf": 0.7630946040153503,
+      "designator": "R8",
+      "idx": 15,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1208,
+          1726
+        ],
+        [
+          1208,
+          1880
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1177,
+        1726,
+        1239,
+        1880
+      ]
+    },
+    {
+      "conf": 0.750806987285614,
+      "designator": "R9",
+      "idx": 16,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1663,
+          1695
+        ],
+        [
+          1836,
+          1695
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1663,
+        1660,
+        1836,
+        1731
+      ]
+    },
+    {
+      "conf": 0.6721142530441284,
+      "designator": "C4",
+      "idx": 17,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Polarized-Capacitor",
+      "ports": [
+        [
+          3060,
+          365
+        ],
+        [
+          3057,
+          470
+        ]
+      ],
+      "raw_name": "capacitor.polarized",
+      "xyxy": [
+        2985,
+        365,
+        3099,
+        470
+      ]
+    },
+    {
+      "idx": 18,
+      "name": "BJT",
+      "raw_name": "manual",
+      "designator": "Q3",
+      "xyxy": [
+        1343,
+        1563,
+        1425,
+        1712
+      ],
+      "ports": [
+        [
+          1343,
+          1623
+        ],
+        [
+          1425,
+          1581
+        ],
+        [
+          1425,
+          1705
+        ]
+      ],
+      "labels": [
+        "B",
+        "E",
+        "C"
+      ],
+      "conf": 1,
+      "manual": true
+    }
+  ],
+  "height": 3024,
+  "image": "C195_D2_P1.JPG",
+  "width": 4032
+}

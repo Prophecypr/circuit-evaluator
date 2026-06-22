@@ -1,0 +1,6 @@
+G1: D2.+, R1.1, Q1.B
+G2: D2.-, R2.2
+G3: R2.1, T1.T, R3.1
+G4: R3.2, D1.+
+G5: D1.-, Q1.C
+G6: Q1.E, GND3.GND, GND1.GND, GND2.GND, R1.2

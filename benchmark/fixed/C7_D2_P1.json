@@ -1,0 +1,336 @@
+{
+  "components": [
+    {
+      "conf": 0.9028393626213074,
+      "designator": "R1",
+      "idx": 0,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          768,
+          477
+        ],
+        [
+          851,
+          474
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        768,
+        454,
+        851,
+        483
+      ]
+    },
+    {
+      "conf": 0.8963127732276917,
+      "designator": "V1",
+      "idx": 1,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "V-DC",
+      "ports": [
+        [
+          441,
+          400
+        ],
+        [
+          439,
+          458
+        ]
+      ],
+      "raw_name": "voltage.dc",
+      "xyxy": [
+        401,
+        400,
+        471,
+        458
+      ]
+    },
+    {
+      "conf": 0.8782772421836853,
+      "designator": "T1",
+      "idx": 2,
+      "labels": [
+        "P1",
+        "P2",
+        "S1",
+        "S2"
+      ],
+      "name": "Transformer",
+      "ports": [
+        [
+          592,
+          520
+        ],
+        [
+          603,
+          638
+        ],
+        [
+          689,
+          520
+        ],
+        [
+          692,
+          638
+        ]
+      ],
+      "raw_name": "transformer",
+      "xyxy": [
+        586,
+        520,
+        701,
+        638
+      ]
+    },
+    {
+      "conf": 0.8782578706741333,
+      "designator": "GND1",
+      "idx": 3,
+      "labels": [
+        "GND"
+      ],
+      "name": "GND",
+      "ports": [
+        [
+          439,
+          608
+        ]
+      ],
+      "raw_name": "gnd",
+      "xyxy": [
+        419,
+        608,
+        460,
+        638
+      ]
+    },
+    {
+      "conf": 0.8723160624504089,
+      "designator": "Q1",
+      "idx": 4,
+      "labels": [
+        "B",
+        "E",
+        "C"
+      ],
+      "name": "BJT",
+      "ports": [
+        [
+          248,
+          398
+        ],
+        [
+          296,
+          445
+        ],
+        [
+          302,
+          351
+        ]
+      ],
+      "raw_name": "transistor.bjt",
+      "xyxy": [
+        248,
+        351,
+        309,
+        445
+      ]
+    },
+    {
+      "conf": 0.8709807395935059,
+      "designator": "R2",
+      "idx": 5,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          147,
+          612
+        ],
+        [
+          205,
+          606
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        147,
+        588,
+        205,
+        616
+      ]
+    },
+    {
+      "conf": 0.8685174584388733,
+      "designator": "R3",
+      "idx": 6,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          170,
+          295
+        ],
+        [
+          247,
+          292
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        170,
+        271,
+        247,
+        298
+      ]
+    },
+    {
+      "conf": 0.85831618309021,
+      "designator": "R4",
+      "idx": 7,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          155,
+          830
+        ],
+        [
+          215,
+          830
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        155,
+        816,
+        215,
+        844
+      ]
+    },
+    {
+      "conf": 0.8485993146896362,
+      "designator": "Q2",
+      "idx": 8,
+      "labels": [
+        "B",
+        "E",
+        "C"
+      ],
+      "name": "BJT",
+      "ports": [
+        [
+          256,
+          729
+        ],
+        [
+          303,
+          666
+        ],
+        [
+          295,
+          792
+        ]
+      ],
+      "raw_name": "transistor.bjt",
+      "xyxy": [
+        256,
+        666,
+        308,
+        792
+      ]
+    },
+    {
+      "conf": 0.8405764102935791,
+      "designator": "T1",
+      "idx": 9,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          909,
+          469
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        897,
+        456,
+        921,
+        482
+      ]
+    },
+    {
+      "conf": 0.8088305592536926,
+      "designator": "R5",
+      "idx": 10,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          150,
+          492
+        ],
+        [
+          218,
+          491
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        150,
+        473,
+        218,
+        500
+      ]
+    },
+    {
+      "conf": 0.8046183586120605,
+      "designator": "GND2",
+      "idx": 11,
+      "labels": [
+        "GND"
+      ],
+      "name": "GND",
+      "ports": [
+        [
+          813,
+          682
+        ]
+      ],
+      "raw_name": "gnd",
+      "xyxy": [
+        795,
+        682,
+        831,
+        713
+      ]
+    }
+  ],
+  "height": 1280,
+  "image": "C7_D2_P1.jpg",
+  "width": 960
+}

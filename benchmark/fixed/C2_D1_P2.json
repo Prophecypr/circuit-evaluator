@@ -1,0 +1,304 @@
+{
+  "components": [
+    {
+      "conf": 0.9468869566917419,
+      "designator": "V1",
+      "idx": 0,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "V-DC",
+      "ports": [
+        [
+          350,
+          1416
+        ],
+        [
+          337,
+          1727
+        ]
+      ],
+      "raw_name": "voltage.dc",
+      "xyxy": [
+        216,
+        1416,
+        485,
+        1727
+      ]
+    },
+    {
+      "conf": 0.9164056777954102,
+      "designator": "C1",
+      "idx": 1,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Capacitor",
+      "ports": [
+        [
+          647,
+          1179
+        ],
+        [
+          786,
+          1179
+        ]
+      ],
+      "raw_name": "capacitor.unpolarized",
+      "xyxy": [
+        647,
+        1087,
+        786,
+        1271
+      ]
+    },
+    {
+      "conf": 0.9014419913291931,
+      "designator": "C2",
+      "idx": 2,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Capacitor",
+      "ports": [
+        [
+          2199,
+          1318
+        ],
+        [
+          2178,
+          1435
+        ]
+      ],
+      "raw_name": "capacitor.unpolarized",
+      "xyxy": [
+        2056,
+        1318,
+        2306,
+        1435
+      ]
+    },
+    {
+      "conf": 0.8970741629600525,
+      "designator": "GND1",
+      "idx": 3,
+      "labels": [
+        "GND"
+      ],
+      "name": "GND",
+      "ports": [
+        [
+          2197,
+          739
+        ]
+      ],
+      "raw_name": "gnd",
+      "xyxy": [
+        2108,
+        739,
+        2286,
+        848
+      ]
+    },
+    {
+      "conf": 0.8842393159866333,
+      "designator": "R1",
+      "idx": 4,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          2180,
+          1585
+        ],
+        [
+          2172,
+          1864
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        2068,
+        1585,
+        2213,
+        1864
+      ]
+    },
+    {
+      "conf": 0.8835569620132446,
+      "designator": "Q1",
+      "idx": 5,
+      "labels": [
+        "B",
+        "E",
+        "C"
+      ],
+      "name": "BJT",
+      "ports": [
+        [
+          1409,
+          1126
+        ],
+        [
+          1684,
+          1227
+        ],
+        [
+          1647,
+          936
+        ]
+      ],
+      "raw_name": "transistor.bjt",
+      "xyxy": [
+        1409,
+        936,
+        1684,
+        1272
+      ]
+    },
+    {
+      "conf": 0.874967098236084,
+      "designator": "R2",
+      "idx": 6,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1032,
+          1410
+        ],
+        [
+          1051,
+          1718
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        905,
+        1410,
+        1066,
+        1718
+      ]
+    },
+    {
+      "conf": 0.8699148297309875,
+      "designator": "R3",
+      "idx": 7,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1073,
+          529
+        ],
+        [
+          1081,
+          740
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        981,
+        529,
+        1111,
+        740
+      ]
+    },
+    {
+      "conf": 0.8609166145324707,
+      "designator": "R4",
+      "idx": 8,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1627,
+          472
+        ],
+        [
+          1645,
+          670
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1528,
+        472,
+        1673,
+        670
+      ]
+    },
+    {
+      "conf": 0.8277671337127686,
+      "designator": "V2",
+      "idx": 9,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "V-DC",
+      "ports": [
+        [
+          2199,
+          337
+        ],
+        [
+          2199,
+          626
+        ]
+      ],
+      "raw_name": "voltage.dc",
+      "xyxy": [
+        2057,
+        337,
+        2341,
+        626
+      ]
+    },
+    {
+      "conf": 0.8262078166007996,
+      "designator": "R5",
+      "idx": 10,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1689,
+          1436
+        ],
+        [
+          1685,
+          1730
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1568,
+        1436,
+        1718,
+        1730
+      ]
+    }
+  ],
+  "height": 4032,
+  "image": "C2_D1_P2.jpg",
+  "width": 3024
+}
