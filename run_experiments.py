@@ -1,9 +1,11 @@
 """Run wiring ablation experiments and evaluate against GT annotations.
 
-Usage: python run_experiments.py
-Output: experiment_results.csv, experiment_summary.png, ablation_impact.png
+Usage: python run_experiments.py [--output-dir results/visual_wiring_run]
+Output: CSV, plots, and metadata in a dedicated run directory.
 """
+import argparse
 import json, math, os, sys
+from datetime import datetime
 from pathlib import Path
 from collections import defaultdict
 import numpy as np
@@ -23,14 +25,31 @@ PORT_MATCH_RADIUS = 60  # px tolerance for port position matching
 # ---------------------------------------------------------------------------
 # Experiment configs
 # ---------------------------------------------------------------------------
-ABLATION_CONFIGS = {
-    "Ours": {"skip_llm": True},
-    "Baseline": {k: False for k in DEFAULT_CONFIG},
-    "w/o_Sobel": {"use_sobel": False, "skip_llm": True},
-    "w/_Skeleton": {"use_skeleton": True, "skip_llm": True},
-    "CCL": {"use_ccl": True, "skip_llm": True},
-}
-ABLATION_CONFIGS["Baseline"]["skip_llm"] = True
+def build_ablation_configs():
+    """Return complete, independent visual-only configurations for each ablation."""
+    full = {**DEFAULT_CONFIG, "skip_llm": True}
+    return {
+        "Ours": dict(full),
+        "Baseline": {
+            **{key: False for key in DEFAULT_CONFIG},
+            "skip_llm": True,
+        },
+        "w/o_Skeleton": {**full, "use_skeleton": False},
+        "w/o_Sobel": {**full, "use_sobel": False},
+        "w/o_NN_Filter": {**full, "use_nn_filter": False},
+        "w/o_Close_Port": {**full, "use_close_port": False},
+        "CCL": {**full, "use_ccl": True},
+    }
+
+
+def resolve_output_dir(output_dir=None):
+    """Create and return a dedicated output directory for one experiment run."""
+    if output_dir is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_dir = Path("results") / f"visual_wiring_{timestamp}"
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    return output_path
 
 
 # ---------------------------------------------------------------------------
@@ -263,9 +282,12 @@ def get_image_list():
     return images
 
 
-def main():
+def main(output_dir=None):
+    output_dir = resolve_output_dir(output_dir)
     images = get_image_list()
-    configs = list(ABLATION_CONFIGS.keys())
+    ablation_configs = build_ablation_configs()
+    configs = list(ablation_configs.keys())
+    print(f"Output directory: {output_dir}")
     print(f"Running {len(images)} images x {len(configs)} configs...")
     print(f"Configs: {', '.join(configs)}")
     print()
@@ -281,7 +303,7 @@ def main():
         print(f"[{img_idx+1}/{len(images)}] {stem} ({n_comps} components, {len(gt_groups)} GT groups)")
 
         for cfg_name in configs:
-            cfg = ABLATION_CONFIGS[cfg_name]
+            cfg = ablation_configs[cfg_name]
             try:
                 result = process_image(img_path, config=dict(cfg))
                 if result is None:
@@ -306,7 +328,7 @@ def main():
     # -----------------------------------------------------------------------
     # Save CSV
     # -----------------------------------------------------------------------
-    csv_path = "experiment_results.csv"
+    csv_path = output_dir / "experiment_results.csv"
     with open(csv_path, "w", encoding="utf-8") as f:
         cols = ["image", "config", "n_components", "n_gt_groups", "n_pred_groups",
                 "port_correct_rate", "fp_rate", "fn_rate", "group_accuracy",
@@ -315,6 +337,15 @@ def main():
         for r in results:
             f.write(",".join(str(r.get(c, "")) for c in cols) + "\n")
     print(f"\nSaved {csv_path} ({len(results)} rows)")
+
+    metadata_path = output_dir / "run_metadata.json"
+    with open(metadata_path, "w", encoding="utf-8") as f:
+        json.dump({
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+            "image_count": len(images),
+            "configs": ablation_configs,
+        }, f, ensure_ascii=False, indent=2, sort_keys=True)
+    print(f"Saved {metadata_path}")
 
     # -----------------------------------------------------------------------
     # Compute summary statistics (mean per config)
@@ -359,8 +390,9 @@ def main():
     ax.set_ylim(0, 1.1)
     ax.grid(axis="y", alpha=0.3)
     plt.tight_layout()
-    fig.savefig("experiment_summary.png", dpi=150)
-    print("Saved experiment_summary.png")
+    summary_plot_path = output_dir / "experiment_summary.png"
+    fig.savefig(summary_plot_path, dpi=150)
+    print(f"Saved {summary_plot_path}")
 
     # -----------------------------------------------------------------------
     # Plot 2: ablation_impact.png — delta from full
@@ -393,8 +425,9 @@ def main():
         ax2.legend(loc="lower left", fontsize=7)
         ax2.grid(axis="y", alpha=0.3)
         plt.tight_layout()
-        fig2.savefig("ablation_impact.png", dpi=150)
-        print("Saved ablation_impact.png")
+        impact_plot_path = output_dir / "ablation_impact.png"
+        fig2.savefig(impact_plot_path, dpi=150)
+        print(f"Saved {impact_plot_path}")
 
     # -----------------------------------------------------------------------
     # Print summary table
@@ -414,4 +447,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--output-dir",
+        help="Directory for this run's CSV, plots, and metadata.",
+    )
+    args = parser.parse_args()
+    main(args.output_dir)
