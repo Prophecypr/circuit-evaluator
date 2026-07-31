@@ -43,6 +43,7 @@ DEFAULT_CONFIG = {
     "use_sobel": True, "use_close_port": True,
     "use_force_connect": False, "use_los": True,  # force-connect disabled: creates FPs
     "use_ccl": False,
+    "use_component_mask": True,
     "skip_llm": False,
     "save_artifacts": True,
 }
@@ -798,22 +799,42 @@ def _verify_skeleton_any(skeleton, x1, y1, x2, y2, margin=6, min_ratio=0.30):
 # ---------------------------------------------------------------------------
 # Skeleton-based wire tracing
 # ---------------------------------------------------------------------------
-def _extract_skeleton(gray_img, max_dim=800):
-    """Extract single-pixel skeleton from grayscale circuit image.
-    Steps: resize → adaptive threshold → morph close → Zhang-Suen thinning.
+def _build_wire_mask(gray_img, components, im_scale=1.0):
+    """Return white wire evidence with inset component interiors removed."""
+    wire_mask = cv2.adaptiveThreshold(
+        gray_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV, 21, 6,
+    )
+    h, w = wire_mask.shape[:2]
+    inset = max(3, int(5 * im_scale))
+    for component in components:
+        xyxy = component.get("xyxy")
+        if xyxy is None or len(xyxy) != 4:
+            continue
+        x1, y1, x2, y2 = (int(round(value)) for value in xyxy)
+        x1 = min(w, max(0, x1)); x2 = min(w, max(0, x2))
+        y1 = min(h, max(0, y1)); y2 = min(h, max(0, y2))
+        mx1, my1 = x1 + inset, y1 + inset
+        mx2, my2 = x2 - inset, y2 - inset
+        if mx2 > mx1 and my2 > my1:
+            wire_mask[my1:my2, mx1:mx2] = 0
+    return wire_mask
+
+
+def _extract_skeleton_from_mask(binary_mask, max_dim=800):
+    """Extract single-pixel skeleton from a white-foreground binary mask.
+    Steps: resize → morph close → Zhang-Suen thinning.
     Returns binary skeleton image (255=wire, 0=background) at ORIGINAL resolution.
     """
-    orig_h, orig_w = gray_img.shape[:2]
+    orig_h, orig_w = binary_mask.shape[:2]
     scale = 1.0
     if max(orig_h, orig_w) > max_dim:
         scale = max_dim / max(orig_h, orig_w)
-        gray_img = cv2.resize(gray_img, (int(orig_w*scale), int(orig_h*scale)))
-    # Adaptive threshold for varying illumination / pen pressure
-    bin_img = cv2.adaptiveThreshold(gray_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                     cv2.THRESH_BINARY_INV, 15, 4)
+        binary_mask = cv2.resize(binary_mask, (int(orig_w*scale), int(orig_h*scale)),
+                                 interpolation=cv2.INTER_NEAREST)
     # Bridge small gaps (≤3px)
     kernel = np.ones((3, 3), np.uint8)
-    closed = cv2.morphologyEx(bin_img, cv2.MORPH_CLOSE, kernel, iterations=1)
+    closed = cv2.morphologyEx(binary_mask, cv2.MORPH_CLOSE, kernel, iterations=1)
 
     # Zhang-Suen thinning
     skel = (closed // 255).astype(np.uint8)
@@ -848,6 +869,16 @@ def _extract_skeleton(gray_img, max_dim=800):
     if scale < 1.0:
         skeleton = cv2.resize(skeleton, (orig_w, orig_h), interpolation=cv2.INTER_NEAREST)
     return skeleton
+
+
+def _extract_skeleton(gray_img, max_dim=800):
+    """Backward-compatible grayscale wrapper around mask-based extraction."""
+    binary_mask = cv2.adaptiveThreshold(
+        gray_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV, 15, 4,
+    )
+    return _extract_skeleton_from_mask(binary_mask, max_dim=max_dim)
+
 
 def _snap_ports_to_skeleton(components, skeleton, search_radius=15):
     """改进1: Snap each port to the nearest skeleton endpoint.
@@ -1597,16 +1628,13 @@ def process_image(img_path, config=None):
     if config["use_ccl"]:
         print("  Wiring: CCL (Connected Component Analysis)")
         # 1. Binarize: adaptive threshold handles uneven lighting in hand-drawn scans
-        wire_mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                          cv2.THRESH_BINARY_INV, 21, 6)
-        # White-out component INTERIORS only (inset), keep edges visible for ports
-        inset = max(3, int(5 * im_scale))
-        for c in components:
-            x1, y1, x2, y2 = c["xyxy"]
-            mx1 = max(0, x1 + inset); my1 = max(0, y1 + inset)
-            mx2 = min(w, x2 - inset); my2 = min(h, y2 - inset)
-            if mx2 > mx1 and my2 > my1:
-                wire_mask[my1:my2, mx1:mx2] = 0  # black
+        if config["use_component_mask"]:
+            wire_mask = _build_wire_mask(gray, components, im_scale=im_scale)
+        else:
+            wire_mask = cv2.adaptiveThreshold(
+                gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv2.THRESH_BINARY_INV, 21, 6,
+            )
 
         # 2. Dilate to bridge hand-drawn gaps
         k = max(2, int(3 * im_scale))
@@ -1707,7 +1735,11 @@ def process_image(img_path, config=None):
     # ---- Step 5e: Skeleton-based wire validation ----
     if config["use_skeleton"]:
         try:
-            skeleton = _extract_skeleton(gray)
+            if config["use_component_mask"]:
+                wire_mask = _build_wire_mask(gray, components, im_scale=im_scale)
+                skeleton = _extract_skeleton_from_mask(wire_mask)
+            else:
+                skeleton = _extract_skeleton(gray)
             # Pre-compute junction branch counts from skeleton
             _junc_branch_count = {}
             for jx, jy in junctions:
