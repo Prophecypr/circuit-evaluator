@@ -28,7 +28,7 @@ MODELS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.pat
 CGH_SKIP = {"crossover", "probe.current", "probe.voltage"}
 CGH_CONF_THRESH = 0.40
 JUNCTION_CONF = 0.10
-PORT_JUNCTION_RADIUS = 300
+PORT_JUNCTION_RADIUS = 300  # optimal from grid search (min FP×FN on 5 images)
 PORT_JUNCTION_FALLBACK = 250  # wider radius for second-pass matching
 JJ_ALIGN_PX = 15  # horizontal/vertical alignment tolerance (hand-drawn variance)
 JJ_PROXIMITY = 12  # connect junctions within this range even without alignment
@@ -41,7 +41,7 @@ DEFAULT_CONFIG = {
     "use_skeleton": True, "use_degree_constraint": False,
     "use_nn_filter": True, "use_skel_jj": True,
     "use_sobel": True, "use_close_port": True,
-    "use_force_connect": True, "use_los": True,
+    "use_force_connect": False, "use_los": True,  # force-connect disabled: creates FPs
     "use_ccl": False,
     "skip_llm": False,
 }
@@ -1623,20 +1623,32 @@ def process_image(img_path, config=None):
             for pi, (px, py) in enumerate(c["ports"]):
                 px_c = max(0, min(w - 1, px))
                 py_c = max(0, min(h - 1, py))
-                # Sample labels in a small radial search around port
-                r = max(3, int(6 * im_scale))
-                found_labels = []
-                for dy in range(-r, r + 1, 2):
-                    for dx in range(-r, r + 1, 2):
-                        sy, sx = py_c + dy, px_c + dx
-                        if 0 <= sy < h and 0 <= sx < w:
-                            lbl = labels[sy, sx]
-                            if lbl > 0:
-                                found_labels.append(lbl)
-                if found_labels:
-                    # Use most common label
-                    lbl = max(set(found_labels), key=found_labels.count)
-                    port_labels[(ci, pi)] = lbl
+                # Find the nearest non-zero label within expanding search radius
+                best_lbl, best_d = 0, max(3, int(8 * im_scale))
+                for r in range(1, best_d + 1, 2):
+                    found = False
+                    for dy in range(-r, r + 1, 2):
+                        for dx in range(-r, r + 1, 2):
+                            sy, sx = py_c + dy, px_c + dx
+                            if 0 <= sy < h and 0 <= sx < w:
+                                lbl = labels[sy, sx]
+                                if lbl > 0:
+                                    best_lbl = lbl
+                                    found = True
+                                    break
+                        if found:
+                            break
+                    if found:
+                        break
+                if best_lbl > 0:
+                    port_labels[(ci, pi)] = best_lbl
+                else:
+                    if found_labels := [labels[py_c + dy, px_c + dx]
+                                        for dy in range(-best_d, best_d + 1, 2)
+                                        for dx in range(-best_d, best_d + 1, 2)
+                                        if 0 <= py_c + dy < h and 0 <= px_c + dx < w
+                                        and labels[py_c + dy, px_c + dx] > 0]:
+                        port_labels[(ci, pi)] = max(set(found_labels), key=found_labels.count)
 
         # 5. Build p2j_connections: ports sharing the same label → same net
         #    Use virtual junction points at centroid of each region
@@ -2154,10 +2166,22 @@ def process_image(img_path, config=None):
                                 continue
                             dx = abs(ax - bx)
                             dy = abs(ay - by)
-                            # Close ports: within 50px euclidean distance
-                            if math.hypot(dx, dy) < 50:
+                            # Close ports: within 20px euclidean (was 50, tightened — 建议3)
+                            if math.hypot(dx, dy) < 20:
                                 # Don't wire two GNDs together
                                 if ca["name"] == "GND" and cb["name"] == "GND":
+                                    continue
+                                # Skeleton verification for close-port pairs (建议3)
+                                skel_ok = True
+                                if skeleton is not None and config["use_skeleton"]:
+                                    # Vertically or horizontally aligned?
+                                    aligned = abs(dx) < jj_align or abs(dy) < jj_align
+                                    if aligned:
+                                        ratio = _verify_skeleton_path(skeleton, ax, ay, bx, by, margin=5, min_ratio=0.15)
+                                        skel_ok = ratio
+                                    else:
+                                        skel_ok = _verify_skeleton_any(skeleton, ax, ay, bx, by)
+                                if not skel_ok:
                                     continue
                                 mx, my = (ax+bx)//2, (ay+by)//2
                                 p2j_connections.append((ia, pa, mx, my))
