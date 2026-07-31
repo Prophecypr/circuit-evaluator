@@ -817,24 +817,55 @@ def _mask_component_interiors(wire_mask, components, im_scale=1.0):
     return wire_mask
 
 
-def _build_wire_mask(gray_img, components, im_scale=1.0):
+def _build_wire_mask(gray_img, components, im_scale=1.0,
+                     threshold_block_size=21, threshold_c=6):
     """Return white wire evidence with inset component interiors removed."""
     wire_mask = cv2.adaptiveThreshold(
         gray_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY_INV, 21, 6,
+        cv2.THRESH_BINARY_INV, threshold_block_size, threshold_c,
     )
     return _mask_component_interiors(wire_mask, components, im_scale=im_scale)
 
 
 def _build_ccl_wire_mask(gray_img, components, use_component_mask, im_scale=1.0):
-    """Build CCL input, retaining its historical component masking fallback."""
+    """Build CCL input, optionally masking component interiors."""
     if use_component_mask:
         return _build_wire_mask(gray_img, components, im_scale=im_scale)
-    wire_mask = cv2.adaptiveThreshold(
+    return cv2.adaptiveThreshold(
         gray_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
         cv2.THRESH_BINARY_INV, 21, 6,
     )
-    return _mask_component_interiors(wire_mask, components, im_scale=im_scale)
+
+
+def _extract_component_masked_skeleton(gray_img, components, im_scale=1.0,
+                                       max_dim=800):
+    """Extract a masked skeleton using the legacy scaled 15/4 threshold flow."""
+    orig_h, orig_w = gray_img.shape[:2]
+    scale = min(1.0, max_dim / max(orig_h, orig_w))
+    scaled_gray = gray_img
+    scaled_components = components
+    if scale < 1.0:
+        scaled_size = (int(orig_w * scale), int(orig_h * scale))
+        scaled_gray = cv2.resize(gray_img, scaled_size)
+        scaled_components = []
+        for component in components:
+            scaled_component = dict(component)
+            xyxy = component.get("xyxy")
+            if xyxy is not None and len(xyxy) == 4:
+                scaled_component["xyxy"] = tuple(value * scale for value in xyxy)
+            scaled_components.append(scaled_component)
+    wire_mask = _build_wire_mask(
+        scaled_gray, scaled_components, im_scale=im_scale * scale,
+        threshold_block_size=15, threshold_c=4,
+    )
+    skeleton = _extract_skeleton_from_mask(
+        wire_mask, max_dim=max(scaled_gray.shape[:2]),
+    )
+    if scale < 1.0:
+        skeleton = cv2.resize(
+            skeleton, (orig_w, orig_h), interpolation=cv2.INTER_NEAREST,
+        )
+    return skeleton
 
 
 def _extract_skeleton_from_mask(binary_mask, max_dim=800):
@@ -1748,8 +1779,9 @@ def process_image(img_path, config=None):
     if config["use_skeleton"]:
         try:
             if config["use_component_mask"]:
-                wire_mask = _build_wire_mask(gray, components, im_scale=im_scale)
-                skeleton = _extract_skeleton_from_mask(wire_mask)
+                skeleton = _extract_component_masked_skeleton(
+                    gray, components, im_scale=im_scale,
+                )
             else:
                 skeleton = _extract_skeleton(gray)
             # Pre-compute junction branch counts from skeleton

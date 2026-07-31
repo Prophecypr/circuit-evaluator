@@ -4,6 +4,7 @@ import numpy as np
 from src.vision.unified_pipeline import (
     _build_ccl_wire_mask,
     _build_wire_mask,
+    _extract_component_masked_skeleton,
     _extract_skeleton_from_mask,
 )
 
@@ -11,7 +12,7 @@ from src.vision.unified_pipeline import (
 def test_build_wire_mask_preserves_wire_and_masks_component_interior():
     gray = np.full((100, 100), 255, dtype=np.uint8)
     cv2.line(gray, (5, 10), (95, 10), 0, 2)
-    cv2.rectangle(gray, (40, 40), (60, 60), 0, thickness=-1)
+    cv2.line(gray, (42, 50), (58, 50), 0, 2)
 
     mask = _build_wire_mask(gray, [{"xyxy": (35, 35, 65, 65)}])
 
@@ -47,14 +48,31 @@ def test_build_wire_mask_clamps_edge_and_degenerate_component_boxes():
     assert mask[16, 16] == 255
 
 
-def test_ccl_legacy_masking_still_removes_component_interior_when_disabled():
+def test_ccl_component_mask_switch_changes_component_stroke_evidence():
     gray = np.full((100, 100), 255, dtype=np.uint8)
     cv2.line(gray, (5, 10), (95, 10), 0, 2)
-    cv2.rectangle(gray, (40, 40), (60, 60), 0, thickness=-1)
+    cv2.line(gray, (42, 50), (58, 50), 0, 2)
 
-    mask = _build_ccl_wire_mask(
+    masked = _build_ccl_wire_mask(
+        gray, [{"xyxy": (35, 35, 65, 65)}], use_component_mask=True,
+    )
+    raw = _build_ccl_wire_mask(
         gray, [{"xyxy": (35, 35, 65, 65)}], use_component_mask=False,
     )
 
-    assert mask[10, 20] == 255
-    assert mask[50, 50] == 0
+    assert masked[50, 50] == 0
+    assert raw[50, 50] == 255
+
+
+def test_component_masked_skeleton_keeps_external_wire_and_masks_component():
+    gray = np.full((100, 100), 255, dtype=np.uint8)
+    cv2.line(gray, (5, 10), (35, 10), 0, 4)
+    cv2.rectangle(gray, (50, 40), (90, 80), 0, thickness=-1)
+
+    skeleton = _extract_component_masked_skeleton(
+        gray, [{"xyxy": (45, 35, 95, 85)}], max_dim=50,
+    )
+
+    assert skeleton.shape == gray.shape
+    assert np.any(skeleton[6:15, 12:30])
+    assert not np.any(skeleton[55:75, 60:80])

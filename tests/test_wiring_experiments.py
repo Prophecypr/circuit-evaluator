@@ -17,6 +17,7 @@ def test_ablation_configs_are_full_unique_and_llm_free():
         "w/o_Sobel",
         "w/o_NN_Filter",
         "w/o_Close_Port",
+        "w/o_Component_Mask",
         "CCL",
     }
     assert DEFAULT_CONFIG["save_artifacts"] is True
@@ -33,6 +34,7 @@ def test_ablation_configs_are_full_unique_and_llm_free():
     assert configs["w/o_Sobel"]["use_sobel"] is False
     assert configs["w/o_NN_Filter"]["use_nn_filter"] is False
     assert configs["w/o_Close_Port"]["use_close_port"] is False
+    assert configs["w/o_Component_Mask"]["use_component_mask"] is False
     assert configs["CCL"]["use_ccl"] is True
     assert all(set(config) == set(DEFAULT_CONFIG) for config in configs.values())
     assert all(config["skip_llm"] is True for config in configs.values())

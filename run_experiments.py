@@ -40,6 +40,7 @@ def build_ablation_configs():
         "w/o_Sobel": {**full, "use_sobel": False},
         "w/o_NN_Filter": {**full, "use_nn_filter": False},
         "w/o_Close_Port": {**full, "use_close_port": False},
+        "w/o_Component_Mask": {**full, "use_component_mask": False},
         "CCL": {**full, "use_ccl": True},
     }
 
