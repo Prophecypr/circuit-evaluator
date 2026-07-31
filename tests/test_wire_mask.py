@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 
 from src.vision.unified_pipeline import (
+    _build_ccl_wire_mask,
     _build_wire_mask,
     _extract_skeleton_from_mask,
 )
@@ -44,3 +45,16 @@ def test_build_wire_mask_clamps_edge_and_degenerate_component_boxes():
 
     assert mask.shape == gray.shape
     assert mask[16, 16] == 255
+
+
+def test_ccl_legacy_masking_still_removes_component_interior_when_disabled():
+    gray = np.full((100, 100), 255, dtype=np.uint8)
+    cv2.line(gray, (5, 10), (95, 10), 0, 2)
+    cv2.rectangle(gray, (40, 40), (60, 60), 0, thickness=-1)
+
+    mask = _build_ccl_wire_mask(
+        gray, [{"xyxy": (35, 35, 65, 65)}], use_component_mask=False,
+    )
+
+    assert mask[10, 20] == 255
+    assert mask[50, 50] == 0

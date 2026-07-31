@@ -799,12 +799,8 @@ def _verify_skeleton_any(skeleton, x1, y1, x2, y2, margin=6, min_ratio=0.30):
 # ---------------------------------------------------------------------------
 # Skeleton-based wire tracing
 # ---------------------------------------------------------------------------
-def _build_wire_mask(gray_img, components, im_scale=1.0):
-    """Return white wire evidence with inset component interiors removed."""
-    wire_mask = cv2.adaptiveThreshold(
-        gray_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY_INV, 21, 6,
-    )
+def _mask_component_interiors(wire_mask, components, im_scale=1.0):
+    """Remove inset component interiors from a white-foreground wire mask."""
     h, w = wire_mask.shape[:2]
     inset = max(3, int(5 * im_scale))
     for component in components:
@@ -819,6 +815,26 @@ def _build_wire_mask(gray_img, components, im_scale=1.0):
         if mx2 > mx1 and my2 > my1:
             wire_mask[my1:my2, mx1:mx2] = 0
     return wire_mask
+
+
+def _build_wire_mask(gray_img, components, im_scale=1.0):
+    """Return white wire evidence with inset component interiors removed."""
+    wire_mask = cv2.adaptiveThreshold(
+        gray_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV, 21, 6,
+    )
+    return _mask_component_interiors(wire_mask, components, im_scale=im_scale)
+
+
+def _build_ccl_wire_mask(gray_img, components, use_component_mask, im_scale=1.0):
+    """Build CCL input, retaining its historical component masking fallback."""
+    if use_component_mask:
+        return _build_wire_mask(gray_img, components, im_scale=im_scale)
+    wire_mask = cv2.adaptiveThreshold(
+        gray_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV, 21, 6,
+    )
+    return _mask_component_interiors(wire_mask, components, im_scale=im_scale)
 
 
 def _extract_skeleton_from_mask(binary_mask, max_dim=800):
@@ -1628,13 +1644,9 @@ def process_image(img_path, config=None):
     if config["use_ccl"]:
         print("  Wiring: CCL (Connected Component Analysis)")
         # 1. Binarize: adaptive threshold handles uneven lighting in hand-drawn scans
-        if config["use_component_mask"]:
-            wire_mask = _build_wire_mask(gray, components, im_scale=im_scale)
-        else:
-            wire_mask = cv2.adaptiveThreshold(
-                gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                cv2.THRESH_BINARY_INV, 21, 6,
-            )
+        wire_mask = _build_ccl_wire_mask(
+            gray, components, config["use_component_mask"], im_scale=im_scale,
+        )
 
         # 2. Dilate to bridge hand-drawn gaps
         k = max(2, int(3 * im_scale))
