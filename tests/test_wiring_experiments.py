@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 import run_experiments
 from run_experiments import build_ablation_configs, resolve_output_dir
 from src.vision.unified_pipeline import DEFAULT_CONFIG
@@ -17,7 +19,12 @@ def test_ablation_configs_are_full_unique_and_llm_free():
         "w/o_Close_Port",
         "CCL",
     }
-    assert configs["Ours"] == {**DEFAULT_CONFIG, "skip_llm": True}
+    assert DEFAULT_CONFIG["save_artifacts"] is True
+    assert configs["Ours"] == {
+        **DEFAULT_CONFIG,
+        "skip_llm": True,
+        "save_artifacts": False,
+    }
     assert configs["Baseline"] == {
         **{key: False for key in DEFAULT_CONFIG},
         "skip_llm": True,
@@ -29,6 +36,7 @@ def test_ablation_configs_are_full_unique_and_llm_free():
     assert configs["CCL"]["use_ccl"] is True
     assert all(set(config) == set(DEFAULT_CONFIG) for config in configs.values())
     assert all(config["skip_llm"] is True for config in configs.values())
+    assert all(config["save_artifacts"] is False for config in configs.values())
 
     fingerprints = {tuple(sorted(config.items())) for config in configs.values()}
     assert len(fingerprints) == len(configs)
@@ -39,6 +47,23 @@ def test_output_directory_is_explicit_and_created(tmp_path):
 
     assert output_dir.is_dir()
     assert output_dir == tmp_path / "visual-only-run"
+
+
+def test_default_output_directories_are_unique_and_explicit_nonempty_dirs_fail(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    first_output_dir = resolve_output_dir()
+    second_output_dir = resolve_output_dir()
+
+    assert first_output_dir.is_dir()
+    assert second_output_dir.is_dir()
+    assert first_output_dir != second_output_dir
+
+    occupied_dir = tmp_path / "occupied-output"
+    occupied_dir.mkdir()
+    (occupied_dir / "existing.csv").write_text("existing run", encoding="utf-8")
+    with pytest.raises(FileExistsError):
+        resolve_output_dir(occupied_dir)
 
 
 def test_main_writes_all_outputs_to_requested_directory_only(tmp_path, monkeypatch):
@@ -71,6 +96,7 @@ def test_main_writes_all_outputs_to_requested_directory_only(tmp_path, monkeypat
 
     def fake_process_image(_image_path, config):
         assert config["skip_llm"] is True
+        assert config["save_artifacts"] is False
         return {
             "components": [
                 {"xyxy": [0, 0, 10, 10], "ports": [[0, 5]]},
@@ -89,6 +115,10 @@ def test_main_writes_all_outputs_to_requested_directory_only(tmp_path, monkeypat
     metadata = json.loads((output_dir / "run_metadata.json").read_text(encoding="utf-8"))
     assert metadata["image_count"] == 1
     assert all(config["skip_llm"] is True for config in metadata["configs"].values())
+    assert all(config["save_artifacts"] is False for config in metadata["configs"].values())
+    assert "git_revision" in metadata
+    if revision := run_experiments.get_git_revision():
+        assert metadata["git_revision"] == revision
     assert all(
         (tmp_path / artifact_name).read_text(encoding="utf-8") == "historical artifact"
         for artifact_name in artifact_names

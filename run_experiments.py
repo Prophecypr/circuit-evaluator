@@ -5,9 +5,11 @@ Output: CSV, plots, and metadata in a dedicated run directory.
 """
 import argparse
 import json, math, os, sys
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from collections import defaultdict
+from uuid import uuid4
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -27,7 +29,7 @@ PORT_MATCH_RADIUS = 60  # px tolerance for port position matching
 # ---------------------------------------------------------------------------
 def build_ablation_configs():
     """Return complete, independent visual-only configurations for each ablation."""
-    full = {**DEFAULT_CONFIG, "skip_llm": True}
+    full = {**DEFAULT_CONFIG, "skip_llm": True, "save_artifacts": False}
     return {
         "Ours": dict(full),
         "Baseline": {
@@ -45,11 +47,33 @@ def build_ablation_configs():
 def resolve_output_dir(output_dir=None):
     """Create and return a dedicated output directory for one experiment run."""
     if output_dir is None:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = Path("results") / f"visual_wiring_{timestamp}"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        output_path = Path("results") / f"visual_wiring_{timestamp}_{uuid4().hex}"
+        output_path.mkdir(parents=True)
+        return output_path
+
     output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
+    if output_path.exists():
+        if not output_path.is_dir() or any(output_path.iterdir()):
+            raise FileExistsError(
+                f"Refusing to overwrite non-empty experiment output directory: {output_path}"
+            )
+    else:
+        output_path.mkdir(parents=True)
     return output_path
+
+
+def get_git_revision():
+    """Return the current Git revision, or None when Git metadata is unavailable."""
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=Path(__file__).resolve().parent,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip() or None
+    except (OSError, subprocess.CalledProcessError):
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -342,6 +366,7 @@ def main(output_dir=None):
     with open(metadata_path, "w", encoding="utf-8") as f:
         json.dump({
             "created_at": datetime.now().isoformat(timespec="seconds"),
+            "git_revision": get_git_revision(),
             "image_count": len(images),
             "configs": ablation_configs,
         }, f, ensure_ascii=False, indent=2, sort_keys=True)

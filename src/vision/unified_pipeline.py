@@ -44,6 +44,7 @@ DEFAULT_CONFIG = {
     "use_force_connect": False, "use_los": True,  # force-connect disabled: creates FPs
     "use_ccl": False,
     "skip_llm": False,
+    "save_artifacts": True,
 }
 
 # CGHD → HCD name mapping
@@ -2428,13 +2429,22 @@ def process_image(img_path, config=None):
         print(f"  LLM response received ({len(response)} chars)")
 
     # ---- Step 11: Draw annotated image ----
-    out_img = Path(img_path).parent / (Path(img_path).stem + "_wired.jpg")
-    _draw_result(img_path, components, text_values, junctions, routes, p2j_connections,
-                 jj_connections, str(out_img))
+    save_artifacts = config["save_artifacts"]
+    if save_artifacts:
+        out_img = Path(img_path).parent / (Path(img_path).stem + "_wired.jpg")
+        _draw_result(img_path, components, text_values, junctions, routes, p2j_connections,
+                     jj_connections, str(out_img))
 
     # ---- Rebuild junction numbering (after all synthetic junctions added) ----
     junctions = sorted(set((jx, jy) for jx, jy in junctions), key=lambda p: (p[1], p[0]))
     jid_map = {(jx, jy): f"J{i+1}" for i, (jx, jy) in enumerate(junctions)}
+
+    if not save_artifacts:
+        raw_groups = [sorted(port_set) for port_set in groups.values()
+                      if len(set(ci for ci, pi in port_set)) >= 2]
+        return dict(components=components, text_values=text_values, junctions=junctions,
+                    routes=routes, conn_pairs=conn_pairs, raw_groups=raw_groups,
+                    evaluation=response)
 
     # ---- Step 12: Save TXT ----
     out_txt = Path(img_path).parent / (Path(img_path).stem + "_result.txt")
