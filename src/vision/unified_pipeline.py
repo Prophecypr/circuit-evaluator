@@ -837,9 +837,10 @@ def _build_ccl_wire_mask(gray_img, components, use_component_mask, im_scale=1.0)
     )
 
 
-def _extract_component_masked_skeleton(gray_img, components, im_scale=1.0,
-                                       max_dim=800):
-    """Extract a masked skeleton using the legacy scaled 15/4 threshold flow."""
+def _extract_scaled_skeleton(gray_img, components=None, im_scale=1.0,
+                             max_dim=800):
+    """Extract a skeleton using the legacy scaled 15/4 threshold flow."""
+    components = [] if components is None else components
     orig_h, orig_w = gray_img.shape[:2]
     scale = min(1.0, max_dim / max(orig_h, orig_w))
     scaled_gray = gray_img
@@ -866,6 +867,14 @@ def _extract_component_masked_skeleton(gray_img, components, im_scale=1.0,
             skeleton, (orig_w, orig_h), interpolation=cv2.INTER_NEAREST,
         )
     return skeleton
+
+
+def _extract_component_masked_skeleton(gray_img, components, im_scale=1.0,
+                                       max_dim=800):
+    """Extract a scaled skeleton after masking component interiors."""
+    return _extract_scaled_skeleton(
+        gray_img, components, im_scale=im_scale, max_dim=max_dim,
+    )
 
 
 def _extract_skeleton_from_mask(binary_mask, max_dim=800):
@@ -920,11 +929,7 @@ def _extract_skeleton_from_mask(binary_mask, max_dim=800):
 
 def _extract_skeleton(gray_img, max_dim=800):
     """Backward-compatible grayscale wrapper around mask-based extraction."""
-    binary_mask = cv2.adaptiveThreshold(
-        gray_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY_INV, 15, 4,
-    )
-    return _extract_skeleton_from_mask(binary_mask, max_dim=max_dim)
+    return _extract_scaled_skeleton(gray_img, max_dim=max_dim)
 
 
 def _snap_ports_to_skeleton(components, skeleton, search_radius=15):

@@ -5,6 +5,7 @@ from src.vision.unified_pipeline import (
     _build_ccl_wire_mask,
     _build_wire_mask,
     _extract_component_masked_skeleton,
+    _extract_skeleton,
     _extract_skeleton_from_mask,
 )
 
@@ -76,3 +77,14 @@ def test_component_masked_skeleton_keeps_external_wire_and_masks_component():
     assert skeleton.shape == gray.shape
     assert np.any(skeleton[6:15, 12:30])
     assert not np.any(skeleton[55:75, 60:80])
+
+
+def test_empty_component_masked_skeleton_matches_scaled_unmasked_skeleton():
+    gray = np.full((100, 100), 255, dtype=np.uint8)
+    cv2.line(gray, (5, 10), (95, 10), 0, 3)
+    cv2.line(gray, (20, 25), (20, 85), 0, 2)
+
+    masked = _extract_component_masked_skeleton(gray, [], max_dim=50)
+    unmasked = _extract_skeleton(gray, max_dim=50)
+
+    assert np.array_equal(masked, unmasked)
