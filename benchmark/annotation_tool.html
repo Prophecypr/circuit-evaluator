@@ -205,10 +205,10 @@ function commitEdit(){
   edC.designator=document.getElementById('ed_des').value;
   let nm=edC.name;
   let defLabels={'Resistor':['1','2'],'Capacitor':['1','2'],'Polarized-Capacitor':['+','-'],
-    'Inductor':['1','2'],'Diode':['+','-'],'LED':['+','-'],'Zener-Diode':['+','-'],
+    'Inductor':['1','2'],'Diode':['+','-'],'LED':['+','-'],'Zener-Diode':['A','K'],
     'V-DC':['+','-'],'V-AC':['~','~'],'I-DC':['+','-'],'I-AC':['~','~'],
     'Battery':['+','-'],'GND':['GND'],'VCC':['VCC'],'Switch':['1','2','CTRL'],'Speaker':['1','2'],'Microphone':['+','-'],
-    'BJT':['B','E','C'],'FET':['G','S','D'],'Thyristor':['A','K','G'],'Motor':['M+','M-','OUT'],
+    'BJT':['B','C','E'],'FET':['G','S','D'],'Thyristor':['A','K','G'],'Motor':['M+','M-','OUT'],
     'Relay':['C1','C2','NO','COM'],'Transformer':['P1','P2','S1','S2'],'Terminal':['T'],
     'Op-Amp':['-','+','OUT','V+','V-']};
   let dl=defLabels[nm];
@@ -327,9 +327,9 @@ function doAdd(nm){
   let x=ctxMenuX, y=ctxMenuY;
   let sz=80;
   let defLabels={'Resistor':['1','2'],'Capacitor':['1','2'],'Polarized-Capacitor':['+','-'],
-    'Inductor':['1','2'],'Diode':['+','-'],'LED':['+','-'],'Zener-Diode':['+','-'],
+    'Inductor':['1','2'],'Diode':['+','-'],'LED':['+','-'],'Zener-Diode':['A','K'],
     'V-DC':['+','-'],'V-AC':['~','~'],'Battery':['+','-'],'GND':['GND'],'VCC':['VCC'],
-    'Switch':['1','2','CTRL'],'Speaker':['1','2'],'Microphone':['+','-'],'BJT':['B','E','C'],'FET':['G','S','D'],'Thyristor':['A','K','G'],
+    'Switch':['1','2','CTRL'],'Speaker':['1','2'],'Microphone':['+','-'],'BJT':['B','C','E'],'FET':['G','S','D'],'Thyristor':['A','K','G'],
     'Motor':['M+','M-','OUT'],'Relay':['C1','C2','NO','COM'],'Transformer':['P1','P2','S1','S2'],
     'Op-Amp':['-','+','OUT','V+','V-'],'IC':['-','+','OUT'],'Potentiometer':['1','2','W'],'Terminal':['T']};
   let pre={'Resistor':'R','Potentiometer':'R','Capacitor':'C','Polarized-Capacitor':'C',

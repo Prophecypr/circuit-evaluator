@@ -57,7 +57,7 @@ PORT_POSITIONS = {
     "GND": [(0.5, 0.0)],
     "Switch": [(0, 0.5), (1, 0.5), (0.5, 0.0)],
     "Speaker": [(0, 0.5), (1, 0.5)],
-    "BJT": [(0.0, 0.5), (0.7, 0.0), (0.7, 1.0)],   # base=left-center, collector=top-right, emitter=bottom-right
+    "BJT": [(0.0, 0.5), (0.7, 0.0), (0.7, 1.0)],  # B, C, E
     "Diac": [(0, 0.5), (1, 0.5)],
     "Variable-Capacitor": [(0, 0.5), (1, 0.5)],
     "Terminal": [(0.5, 0.5)],
@@ -80,7 +80,7 @@ PORT_LABELS = {
     "Inductor": ["1", "2"],
     "Diode": ["+", "-"],
     "LED": ["+", "-"],
-    "Zener-Diode": ["+", "-"],
+    "Zener-Diode": ["A", "K"],
     "V-DC": ["+", "-"],                   # port[0]=top=+, port[1]=bottom=- (default vertical)
     "V-AC": ["~", "~"],
     "I-DC": ["+", "-"],
@@ -89,7 +89,7 @@ PORT_LABELS = {
     "GND": ["GND"],
     "Switch": ["1", "2", "CTRL"],
     "Speaker": ["1", "2"],
-    "BJT": ["B", "E", "C"],              # port[0]=base-left, port[1]=emitter-topright, port[2]=collector-bottomright
+    "BJT": ["B", "C", "E"],
     "Diac": ["1", "2"],
     "Variable-Capacitor": ["1", "2"],
     "Terminal": ["T"],
