@@ -57,6 +57,34 @@ def test_get_image_list_rejects_duplicate_stem(tmp_path):
         run_experiments.get_image_list(tmp_path)
 
 
+def test_get_image_list_prefers_fixed_detection_json(tmp_path):
+    _seed_benchmark_case(tmp_path, "corrected", ".jpg")
+    fixed_path = tmp_path / "fixed" / "corrected.json"
+    fixed_path.write_text('{"components": ["fixed"]}', encoding="utf-8")
+
+    images = run_experiments.get_image_list(tmp_path)
+
+    assert Path(images[0][3]) == fixed_path
+
+
+def test_get_image_list_rejects_missing_detection_json(tmp_path):
+    _seed_benchmark_case(tmp_path, "undetected", ".jpg")
+    (tmp_path / "detections" / "undetected.json").unlink()
+
+    with pytest.raises(FileNotFoundError, match="undetected.*detection"):
+        run_experiments.get_image_list(tmp_path)
+
+
+def test_get_image_list_ignores_fixed_detection_directory(tmp_path):
+    _seed_benchmark_case(tmp_path, "fallback", ".jpg")
+    fixed_path = tmp_path / "fixed" / "fallback.json"
+    fixed_path.mkdir()
+
+    images = run_experiments.get_image_list(tmp_path)
+
+    assert Path(images[0][3]) == tmp_path / "detections" / "fallback.json"
+
+
 def test_repository_benchmark_schedules_every_gt_file():
     benchmark_dir = Path("benchmark")
     scheduled_stems = {

@@ -317,9 +317,9 @@ def get_image_list(benchmark_dir=BENCHMARK):
 
         fixed_path = fixed_dir / f"{stem}.json"
         detected_path = detections_dir / f"{stem}.json"
-        if fixed_path.exists():
+        if fixed_path.is_file():
             det_path = fixed_path
-        elif detected_path.exists():
+        elif detected_path.is_file():
             det_path = detected_path
         else:
             raise FileNotFoundError(f"{stem}: missing detection JSON")
