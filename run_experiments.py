@@ -22,6 +22,7 @@ BENCHMARK = Path("benchmark")
 RESULT = BENCHMARK / "result"
 DETECTIONS = BENCHMARK / "detections"
 FIXED = BENCHMARK / "fixed"  # manual corrections override detections/
+IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png"}
 PORT_MATCH_RADIUS = 60  # px tolerance for port position matching
 
 # ---------------------------------------------------------------------------
@@ -292,18 +293,38 @@ def evaluate(pipeline_result, gt_groups, det_comps):
 # ---------------------------------------------------------------------------
 # Main experiment loop
 # ---------------------------------------------------------------------------
-def get_image_list():
-    """Return list of (img_name, img_path, gt_path, det_path) for images with GT."""
+def get_image_list(benchmark_dir=BENCHMARK):
+    """Return every GT-backed image, refusing silent omissions or duplicate stems."""
+    benchmark_dir = Path(benchmark_dir)
+    result_dir = benchmark_dir / "result"
+    detections_dir = benchmark_dir / "detections"
+    fixed_dir = benchmark_dir / "fixed"
     images = []
-    for gt_file in sorted(RESULT.glob("*_gt.txt")):
-        stem = gt_file.stem.replace("_gt", "")
-        img_name = stem + ".jpg"
-        img_path = BENCHMARK / img_name
-        det_path = FIXED / (stem + ".json")
-        if not det_path.exists():
-            det_path = DETECTIONS / (stem + ".json")
-        if img_path.exists() and det_path.exists():
-            images.append((stem, str(img_path), str(gt_file), str(det_path)))
+
+    for gt_file in sorted(result_dir.glob("*_gt.txt")):
+        stem = gt_file.stem.removesuffix("_gt")
+        candidates = sorted(
+            path for path in benchmark_dir.iterdir()
+            if path.is_file()
+            and path.stem == stem
+            and path.suffix.lower() in IMAGE_SUFFIXES
+        )
+        if not candidates:
+            raise FileNotFoundError(f"{stem}: missing benchmark image")
+        if len(candidates) > 1:
+            joined = ", ".join(path.name for path in candidates)
+            raise RuntimeError(f"{stem}: multiple images share the GT stem: {joined}")
+
+        fixed_path = fixed_dir / f"{stem}.json"
+        detected_path = detections_dir / f"{stem}.json"
+        if fixed_path.exists():
+            det_path = fixed_path
+        elif detected_path.exists():
+            det_path = detected_path
+        else:
+            raise FileNotFoundError(f"{stem}: missing detection JSON")
+
+        images.append((stem, str(candidates[0]), str(gt_file), str(det_path)))
     return images
 
 

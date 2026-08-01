@@ -1,10 +1,74 @@
 import json
+from pathlib import Path
 
 import pytest
 
 import run_experiments
 from run_experiments import build_ablation_configs, resolve_output_dir
 from src.vision.unified_pipeline import DEFAULT_CONFIG
+
+
+def _seed_benchmark_case(root, stem, suffix):
+    (root / "result").mkdir(exist_ok=True)
+    (root / "detections").mkdir(exist_ok=True)
+    (root / "fixed").mkdir(exist_ok=True)
+    (root / "result" / f"{stem}_gt.txt").write_text(
+        "G1: R1.1, R2.2\n", encoding="utf-8",
+    )
+    (root / "detections" / f"{stem}.json").write_text(
+        '{"components": []}', encoding="utf-8",
+    )
+    (root / f"{stem}{suffix}").write_bytes(b"image")
+
+
+def test_get_image_list_accepts_supported_extensions(tmp_path):
+    for stem, suffix in (
+        ("a", ".jpg"),
+        ("b", ".JPG"),
+        ("c", ".jpeg"),
+        ("d", ".png"),
+    ):
+        _seed_benchmark_case(tmp_path, stem, suffix)
+
+    images = run_experiments.get_image_list(tmp_path)
+
+    assert [image[0] for image in images] == ["a", "b", "c", "d"]
+    assert [Path(image[1]).suffix for image in images] == [
+        ".jpg",
+        ".JPG",
+        ".jpeg",
+        ".png",
+    ]
+
+
+def test_get_image_list_rejects_missing_image(tmp_path):
+    _seed_benchmark_case(tmp_path, "missing", ".jpg")
+    (tmp_path / "missing.jpg").unlink()
+
+    with pytest.raises(FileNotFoundError, match="missing.*image"):
+        run_experiments.get_image_list(tmp_path)
+
+
+def test_get_image_list_rejects_duplicate_stem(tmp_path):
+    _seed_benchmark_case(tmp_path, "duplicate", ".jpg")
+    (tmp_path / "duplicate.jpeg").write_bytes(b"duplicate image")
+
+    with pytest.raises(RuntimeError, match="duplicate.*multiple images"):
+        run_experiments.get_image_list(tmp_path)
+
+
+def test_repository_benchmark_schedules_every_gt_file():
+    benchmark_dir = Path("benchmark")
+    scheduled_stems = {
+        image[0] for image in run_experiments.get_image_list(benchmark_dir)
+    }
+    gt_stems = {
+        path.stem.removesuffix("_gt")
+        for path in (benchmark_dir / "result").glob("*_gt.txt")
+    }
+
+    assert scheduled_stems == gt_stems
+    assert {"C170_D1_P1", "C171_D1_P1", "C274_D2_P1"} <= gt_stems
 
 
 def test_ablation_configs_are_full_unique_and_llm_free():
