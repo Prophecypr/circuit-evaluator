@@ -1,0 +1,73 @@
+{
+  "circuit_id": "C06",
+  "title": "带泄放电阻的RC网络",
+  "difficulty": "medium",
+  "components": [
+    {
+      "id": "V1",
+      "class_name": "voltage.dc",
+      "value": "5V",
+      "ports": [
+        "+",
+        "-"
+      ],
+      "symbol": "voltage.dc"
+    },
+    {
+      "id": "R1",
+      "class_name": "resistor",
+      "value": "10kΩ",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "ansi_zigzag"
+    },
+    {
+      "id": "R2",
+      "class_name": "resistor",
+      "value": "2.2kΩ",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "ansi_zigzag"
+    },
+    {
+      "id": "C1",
+      "class_name": "capacitor.unpolarized",
+      "value": "10uF",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "capacitor.unpolarized"
+    },
+    {
+      "id": "GND",
+      "class_name": "gnd",
+      "value": null,
+      "ports": [
+        "GND"
+      ],
+      "symbol": "gnd"
+    }
+  ],
+  "nets": {
+    "N1": [
+      "V1.+",
+      "R1.1"
+    ],
+    "N2": [
+      "R1.2",
+      "R2.1",
+      "C1.1"
+    ],
+    "N0": [
+      "R2.2",
+      "C1.2",
+      "V1.-",
+      "GND.GND"
+    ]
+  }
+}

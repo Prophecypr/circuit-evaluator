@@ -1,0 +1,61 @@
+{
+  "circuit_id": "C04",
+  "title": "LED限流回路",
+  "difficulty": "basic",
+  "components": [
+    {
+      "id": "V1",
+      "class_name": "voltage.dc",
+      "value": "5V",
+      "ports": [
+        "+",
+        "-"
+      ],
+      "symbol": "voltage.dc"
+    },
+    {
+      "id": "R1",
+      "class_name": "resistor",
+      "value": "330Ω",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "ansi_zigzag"
+    },
+    {
+      "id": "LED1",
+      "class_name": "diode.light_emitting",
+      "value": null,
+      "ports": [
+        "+",
+        "-"
+      ],
+      "symbol": "diode.light_emitting"
+    },
+    {
+      "id": "GND",
+      "class_name": "gnd",
+      "value": null,
+      "ports": [
+        "GND"
+      ],
+      "symbol": "gnd"
+    }
+  ],
+  "nets": {
+    "N1": [
+      "V1.+",
+      "R1.1"
+    ],
+    "N2": [
+      "R1.2",
+      "LED1.+"
+    ],
+    "N0": [
+      "LED1.-",
+      "V1.-",
+      "GND.GND"
+    ]
+  }
+}

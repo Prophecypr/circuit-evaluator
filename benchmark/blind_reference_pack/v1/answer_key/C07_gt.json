@@ -1,0 +1,75 @@
+{
+  "circuit_id": "C07",
+  "title": "RLC串联回路",
+  "difficulty": "medium",
+  "components": [
+    {
+      "id": "V1",
+      "class_name": "voltage.dc",
+      "value": "12V",
+      "ports": [
+        "+",
+        "-"
+      ],
+      "symbol": "voltage.dc"
+    },
+    {
+      "id": "R1",
+      "class_name": "resistor",
+      "value": "100Ω",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "ansi_zigzag"
+    },
+    {
+      "id": "L1",
+      "class_name": "inductor",
+      "value": "10mH",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "inductor"
+    },
+    {
+      "id": "C1",
+      "class_name": "capacitor.unpolarized",
+      "value": "1uF",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "capacitor.unpolarized"
+    },
+    {
+      "id": "GND",
+      "class_name": "gnd",
+      "value": null,
+      "ports": [
+        "GND"
+      ],
+      "symbol": "gnd"
+    }
+  ],
+  "nets": {
+    "N1": [
+      "V1.+",
+      "R1.1"
+    ],
+    "N2": [
+      "R1.2",
+      "L1.1"
+    ],
+    "N3": [
+      "L1.2",
+      "C1.1"
+    ],
+    "N0": [
+      "C1.2",
+      "V1.-",
+      "GND.GND"
+    ]
+  }
+}

@@ -1,5 +1,8 @@
+import hashlib
 import importlib
+import json
 import warnings
+from dataclasses import asdict
 from xml.etree import ElementTree
 
 import matplotlib
@@ -567,3 +570,122 @@ def test_component_rejects_unsupported_dispatch(class_name, orientation, message
             canvas.component("X1", class_name, None, (500, 300), orientation)
     finally:
         plt.close(canvas.figure)
+
+
+def test_generate_pack_writes_complete_versioned_pack_without_overwrite(tmp_path):
+    from generate_blind_reference_pack import generate_pack
+
+    output_dir = tmp_path / "v1"
+
+    assert generate_pack(output_dir) == output_dir
+
+    references = output_dir / "references"
+    answer_key = output_dir / "answer_key"
+    svg_paths = sorted(references.glob("C*_reference.svg"))
+    png_paths = sorted(references.glob("C*_reference.png"))
+    answer_paths = sorted(answer_key.glob("C*_gt.json"))
+    circuit_ids = list(CIRCUITS)
+
+    assert [path.name for path in svg_paths] == [
+        f"{circuit_id}_reference.svg" for circuit_id in circuit_ids
+    ]
+    assert [path.name for path in png_paths] == [
+        f"{circuit_id}_reference.png" for circuit_id in circuit_ids
+    ]
+    assert [path.name for path in answer_paths] == [
+        f"{circuit_id}_gt.json" for circuit_id in circuit_ids
+    ]
+
+    required_files = {
+        "collection_protocol.md",
+        "annotation_protocol.md",
+        "manifest_template.csv",
+        "checksums.sha256",
+    }
+    assert all((output_dir / name).is_file() for name in required_files)
+
+    for circuit_id, svg_path, png_path, answer_path in zip(
+        circuit_ids, svg_paths, png_paths, answer_paths
+    ):
+        with Image.open(png_path) as image:
+            assert image.size == (2338, 1654)
+            image.verify()
+
+        svg_root = ElementTree.parse(svg_path).getroot()
+        assert svg_root.attrib["viewBox"] == "0 0 841.68 595.44"
+        svg_namespace = {"svg": "http://www.w3.org/2000/svg"}
+        visible_texts = {
+            "".join(node.itertext()).strip()
+            for node in svg_root.findall(".//svg:text", svg_namespace)
+        }
+
+        spec = CIRCUITS[circuit_id]
+        assert all(component.id not in visible_texts for component in spec.components)
+        assert all(
+            component.value in visible_texts
+            for component in spec.components
+            if component.value is not None
+        )
+
+        answer = json.loads(answer_path.read_text(encoding="utf-8"))
+        assert answer == {
+            "circuit_id": spec.id,
+            "title": spec.title,
+            "difficulty": spec.difficulty,
+            "components": [
+                {**asdict(component), "ports": list(component.ports)}
+                for component in spec.components
+            ],
+            "nets": {
+                net_id: list(members) for net_id, members in spec.nets.items()
+            },
+        }
+
+    manifest = (output_dir / "manifest_template.csv").read_text(encoding="utf-8")
+    assert manifest.rstrip("\r\n") == (
+        "paper_id,circuit_id,participant_id,difficulty,domain,image_path,gt_path"
+    )
+    assert "\n" not in manifest.rstrip("\r\n")
+
+    checksum_path = output_dir / "checksums.sha256"
+    checksum_lines = checksum_path.read_text(encoding="utf-8").splitlines()
+    generated_files = sorted(
+        (
+            path.relative_to(output_dir).as_posix()
+            for path in output_dir.rglob("*")
+            if path.is_file() and path != checksum_path
+        )
+    )
+    checksum_entries = []
+    for line in checksum_lines:
+        digest, relative_path = line.split("  ", 1)
+        assert len(digest) == 64
+        assert all(character in "0123456789abcdef" for character in digest)
+        assert not relative_path.startswith(("/", "\\"))
+        assert ":" not in relative_path
+        assert (
+            hashlib.sha256((output_dir / relative_path).read_bytes()).hexdigest()
+            == digest
+        )
+        checksum_entries.append(relative_path)
+
+    assert checksum_entries == generated_files
+    assert checksum_entries == sorted(checksum_entries)
+    assert "checksums.sha256" not in checksum_entries
+
+    before_retry = {
+        path.relative_to(output_dir).as_posix(): path.read_bytes()
+        for path in output_dir.rglob("*")
+        if path.is_file()
+    }
+    with pytest.raises(
+        FileExistsError,
+        match=r"refusing to overwrite non-empty pack:",
+    ):
+        generate_pack(output_dir)
+    after_retry = {
+        path.relative_to(output_dir).as_posix(): path.read_bytes()
+        for path in output_dir.rglob("*")
+        if path.is_file()
+    }
+    assert after_retry == before_retry
