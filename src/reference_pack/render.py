@@ -286,6 +286,23 @@ class ReferenceCanvas:
                     ]
                 )
             self._value(value, (x, y - 58))
+        elif class_name == "diode.zener":
+            self._line([(x, y - 70), (x, y - 22)])
+            self._line([(x - 34, y - 22), (x + 34, y - 22)])
+            self.axes.add_patch(
+                Polygon(
+                    [(x - 30, y + 30), (x + 30, y + 30), (x, y - 20)],
+                    closed=True,
+                    fill=False,
+                    edgecolor="black",
+                    linewidth=LINE_WIDTH,
+                    joinstyle="round",
+                )
+            )
+            self._line([(x, y + 30), (x, y + 70)])
+            self._line([(x - 42, y - 32), (x - 34, y - 22), (x - 42, y - 12)])
+            self._line([(x + 42, y - 32), (x + 34, y - 22), (x + 42, y - 12)])
+            self._value(value, (x + 58, y), horizontal_alignment="left")
         else:
             self._line([(x, y - 70), (x, y - 30)])
             self.axes.add_patch(
@@ -300,16 +317,12 @@ class ReferenceCanvas:
             )
             self._line([(x - 34, y + 22), (x + 34, y + 22)])
             self._line([(x, y + 22), (x, y + 70)])
-            if class_name == "diode.zener":
-                self._line([(x - 42, y + 12), (x - 34, y + 22), (x - 42, y + 32)])
-                self._line([(x + 42, y + 12), (x + 34, y + 22), (x + 42, y + 32)])
-            else:
-                self._light_arrows(
-                    [
-                        ((x + 20, y - 10), (x + 48, y - 38)),
-                        ((x + 28, y + 7), (x + 56, y - 21)),
-                    ]
-                )
+            self._light_arrows(
+                [
+                    ((x + 20, y - 10), (x + 48, y - 38)),
+                    ((x + 28, y + 7), (x + 56, y - 21)),
+                ]
+            )
             self._value(value, (x + 58, y), horizontal_alignment="left")
         return self._ports(class_name, orientation, center)
 
