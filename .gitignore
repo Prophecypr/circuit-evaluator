@@ -1,0 +1,71 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+.env
+.claude/
+.worktrees/
+
+# Large data directories
+data/Netlistify/
+data/ocr_training/
+data/ocr_machine/
+
+# Model weights (too large for GitHub)
+runs/
+
+# Test images (too large for GitHub)
+images_C-*.jpg
+images_C-*_wired.jpg
+images_C-*_result.txt
+text*.jpg
+text*_wired.jpg
+text*_result.txt
+*.jpg
+*.jpeg
+*.JPG
+*.JPEG
+*.png
+*.PNG
+
+# Generated outputs
+*_wired.jpg
+*_v2_wired.jpg
+*_result.txt
+*_v2_result.txt
+circuit0.sp
+ocr_corrections.json
+
+# Test images (keep source, exclude generated)
+# test*.jpg and circuit_*.jpg are input images - keep them
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Project-local docs (not for publishing)
+发表路线图.md
+预处理规则.md
+AGENTS.md
+picture.zip
+*.ipynb
+
+# Sensitive benchmark material is kept locally and never published.
+benchmark/result/
+benchmark/detections/
+benchmark/fixed/
+benchmark/blind_reference_pack/v1/answer_key/
+benchmark/新建文本文档.txt
+data/
+docs/superpowers/plans/
+*.env
+*.pem
+*.key
+*.p12
+*secret*
+*credential*
+*token*
+
+# The blind reference images are safe public stimuli for the collection protocol.
+!benchmark/blind_reference_pack/
+!benchmark/blind_reference_pack/v1/
+!benchmark/blind_reference_pack/v1/references/
+!benchmark/blind_reference_pack/v1/references/*.png

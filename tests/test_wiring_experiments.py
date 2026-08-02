@@ -1,0 +1,219 @@
+import json
+from pathlib import Path
+
+import pytest
+
+import run_experiments
+from run_experiments import build_ablation_configs, resolve_output_dir
+from src.vision.unified_pipeline import DEFAULT_CONFIG
+
+
+def _seed_benchmark_case(root, stem, suffix):
+    (root / "result").mkdir(exist_ok=True)
+    (root / "detections").mkdir(exist_ok=True)
+    (root / "fixed").mkdir(exist_ok=True)
+    (root / "result" / f"{stem}_gt.txt").write_text(
+        "G1: R1.1, R2.2\n", encoding="utf-8",
+    )
+    (root / "detections" / f"{stem}.json").write_text(
+        '{"components": []}', encoding="utf-8",
+    )
+    (root / f"{stem}{suffix}").write_bytes(b"image")
+
+
+def test_get_image_list_accepts_supported_extensions(tmp_path):
+    for stem, suffix in (
+        ("a", ".jpg"),
+        ("b", ".JPG"),
+        ("c", ".jpeg"),
+        ("d", ".png"),
+    ):
+        _seed_benchmark_case(tmp_path, stem, suffix)
+
+    images = run_experiments.get_image_list(tmp_path)
+
+    assert [image[0] for image in images] == ["a", "b", "c", "d"]
+    assert [Path(image[1]).suffix for image in images] == [
+        ".jpg",
+        ".JPG",
+        ".jpeg",
+        ".png",
+    ]
+
+
+def test_get_image_list_rejects_missing_image(tmp_path):
+    _seed_benchmark_case(tmp_path, "missing", ".jpg")
+    (tmp_path / "missing.jpg").unlink()
+
+    with pytest.raises(FileNotFoundError, match="missing.*image"):
+        run_experiments.get_image_list(tmp_path)
+
+
+def test_get_image_list_rejects_duplicate_stem(tmp_path):
+    _seed_benchmark_case(tmp_path, "duplicate", ".jpg")
+    (tmp_path / "duplicate.jpeg").write_bytes(b"duplicate image")
+
+    with pytest.raises(RuntimeError, match="duplicate.*multiple images"):
+        run_experiments.get_image_list(tmp_path)
+
+
+def test_get_image_list_prefers_fixed_detection_json(tmp_path):
+    _seed_benchmark_case(tmp_path, "corrected", ".jpg")
+    fixed_path = tmp_path / "fixed" / "corrected.json"
+    fixed_path.write_text('{"components": ["fixed"]}', encoding="utf-8")
+
+    images = run_experiments.get_image_list(tmp_path)
+
+    assert Path(images[0][3]) == fixed_path
+
+
+def test_get_image_list_rejects_missing_detection_json(tmp_path):
+    _seed_benchmark_case(tmp_path, "undetected", ".jpg")
+    (tmp_path / "detections" / "undetected.json").unlink()
+
+    with pytest.raises(FileNotFoundError, match="undetected.*detection"):
+        run_experiments.get_image_list(tmp_path)
+
+
+def test_get_image_list_ignores_fixed_detection_directory(tmp_path):
+    _seed_benchmark_case(tmp_path, "fallback", ".jpg")
+    fixed_path = tmp_path / "fixed" / "fallback.json"
+    fixed_path.mkdir()
+
+    images = run_experiments.get_image_list(tmp_path)
+
+    assert Path(images[0][3]) == tmp_path / "detections" / "fallback.json"
+
+
+def test_repository_benchmark_schedules_every_gt_file():
+    benchmark_dir = Path("benchmark")
+    scheduled_stems = {
+        image[0] for image in run_experiments.get_image_list(benchmark_dir)
+    }
+    gt_stems = {
+        path.stem.removesuffix("_gt")
+        for path in (benchmark_dir / "result").glob("*_gt.txt")
+    }
+
+    assert scheduled_stems == gt_stems
+    assert {"C170_D1_P1", "C171_D1_P1", "C274_D2_P1"} <= gt_stems
+
+
+def test_ablation_configs_are_full_unique_and_llm_free():
+    configs = build_ablation_configs()
+
+    assert set(configs) == {
+        "Ours",
+        "Baseline",
+        "w/o_Skeleton",
+        "w/o_Sobel",
+        "w/o_NN_Filter",
+        "w/o_Close_Port",
+        "w/o_Component_Mask",
+        "CCL",
+    }
+    assert DEFAULT_CONFIG["save_artifacts"] is True
+    assert configs["Ours"] == {
+        **DEFAULT_CONFIG,
+        "skip_llm": True,
+        "save_artifacts": False,
+    }
+    assert configs["Baseline"] == {
+        **{key: False for key in DEFAULT_CONFIG},
+        "skip_llm": True,
+    }
+    assert configs["w/o_Skeleton"]["use_skeleton"] is False
+    assert configs["w/o_Sobel"]["use_sobel"] is False
+    assert configs["w/o_NN_Filter"]["use_nn_filter"] is False
+    assert configs["w/o_Close_Port"]["use_close_port"] is False
+    assert configs["w/o_Component_Mask"]["use_component_mask"] is False
+    assert configs["CCL"]["use_ccl"] is True
+    assert all(set(config) == set(DEFAULT_CONFIG) for config in configs.values())
+    assert all(config["skip_llm"] is True for config in configs.values())
+    assert all(config["save_artifacts"] is False for config in configs.values())
+
+    fingerprints = {tuple(sorted(config.items())) for config in configs.values()}
+    assert len(fingerprints) == len(configs)
+
+
+def test_output_directory_is_explicit_and_created(tmp_path):
+    output_dir = resolve_output_dir(tmp_path / "visual-only-run")
+
+    assert output_dir.is_dir()
+    assert output_dir == tmp_path / "visual-only-run"
+
+
+def test_default_output_directories_are_unique_and_explicit_nonempty_dirs_fail(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    first_output_dir = resolve_output_dir()
+    second_output_dir = resolve_output_dir()
+
+    assert first_output_dir.is_dir()
+    assert second_output_dir.is_dir()
+    assert first_output_dir != second_output_dir
+
+    occupied_dir = tmp_path / "occupied-output"
+    occupied_dir.mkdir()
+    (occupied_dir / "existing.csv").write_text("existing run", encoding="utf-8")
+    with pytest.raises(FileExistsError):
+        resolve_output_dir(occupied_dir)
+
+
+def test_main_writes_all_outputs_to_requested_directory_only(tmp_path, monkeypatch):
+    artifact_names = {
+        "experiment_results.csv",
+        "experiment_summary.png",
+        "ablation_impact.png",
+        "run_metadata.json",
+    }
+    for artifact_name in artifact_names:
+        (tmp_path / artifact_name).write_text("historical artifact", encoding="utf-8")
+
+    detections_path = tmp_path / "detections.json"
+    detections_path.write_text(json.dumps({"components": [
+        {"xyxy": [0, 0, 10, 10], "ports": [[0, 5]], "labels": ["1"], "designator": "R1"},
+        {"xyxy": [20, 0, 30, 10], "ports": [[20, 5]], "labels": ["1"], "designator": "R2"},
+    ]}), encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        run_experiments,
+        "get_image_list",
+        lambda: [("img_000", "unused.jpg", "unused_gt.txt", str(detections_path))],
+    )
+    monkeypatch.setattr(
+        run_experiments,
+        "parse_gt",
+        lambda _path: [[("R1", "1"), ("R2", "1")]],
+    )
+
+    def fake_process_image(_image_path, config):
+        assert config["skip_llm"] is True
+        assert config["save_artifacts"] is False
+        return {
+            "components": [
+                {"xyxy": [0, 0, 10, 10], "ports": [[0, 5]]},
+                {"xyxy": [20, 0, 30, 10], "ports": [[20, 5]]},
+            ],
+            "raw_groups": [{(0, 0), (1, 0)}],
+        }
+
+    monkeypatch.setattr(run_experiments, "process_image", fake_process_image)
+    output_dir = tmp_path / "requested-output"
+
+    run_experiments.main(output_dir)
+
+    assert {path.name for path in output_dir.iterdir()} == artifact_names
+    assert all((output_dir / artifact_name).is_file() for artifact_name in artifact_names)
+    metadata = json.loads((output_dir / "run_metadata.json").read_text(encoding="utf-8"))
+    assert metadata["image_count"] == 1
+    assert all(config["skip_llm"] is True for config in metadata["configs"].values())
+    assert all(config["save_artifacts"] is False for config in metadata["configs"].values())
+    assert "git_revision" in metadata
+    if revision := run_experiments.get_git_revision():
+        assert metadata["git_revision"] == revision
+    assert all(
+        (tmp_path / artifact_name).read_text(encoding="utf-8") == "historical artifact"
+        for artifact_name in artifact_names
+    )
