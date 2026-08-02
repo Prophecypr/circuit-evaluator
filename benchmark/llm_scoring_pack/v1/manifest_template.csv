@@ -1,0 +1,6 @@
+sample_id,source_domain,error_type,image_path,score_key_path
+E01,llm_scoring,polarity_reversal,references/E01_error.png,score_key/E01_gt.json
+E02,llm_scoring,series_parallel_confusion,references/E02_error.png,score_key/E02_gt.json
+E03,llm_scoring,numeric_value_error,references/E03_error.png,score_key/E03_gt.json
+E04,llm_scoring,wrong_bjt_port,references/E04_error.png,score_key/E04_gt.json
+E05,llm_scoring,wrong_junction,references/E05_error.png,score_key/E05_gt.json

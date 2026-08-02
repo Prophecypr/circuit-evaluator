@@ -1,0 +1,197 @@
+{
+  "sample_id": "E04",
+  "title": "评分样本",
+  "difficulty": "challenge",
+  "error_type": "wrong_bjt_port",
+  "severity": "critical",
+  "task": "BJT 基极由 10kΩ 电阻驱动，发射极接地，集电极驱动 LED",
+  "error_description": "10kΩ 电阻误接到发射极，基极被接到地",
+  "expected_components": [
+    {
+      "id": "V1",
+      "class_name": "voltage.dc",
+      "value": "5V",
+      "ports": [
+        "+",
+        "-"
+      ],
+      "symbol": "voltage.dc"
+    },
+    {
+      "id": "R1",
+      "class_name": "resistor",
+      "value": "330Ω",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "ansi_zigzag"
+    },
+    {
+      "id": "R2",
+      "class_name": "resistor",
+      "value": "10kΩ",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "ansi_zigzag"
+    },
+    {
+      "id": "LED1",
+      "class_name": "diode.light_emitting",
+      "value": null,
+      "ports": [
+        "+",
+        "-"
+      ],
+      "symbol": "diode.light_emitting"
+    },
+    {
+      "id": "Q1",
+      "class_name": "transistor.bjt",
+      "value": null,
+      "ports": [
+        "B",
+        "C",
+        "E"
+      ],
+      "symbol": "transistor.bjt"
+    },
+    {
+      "id": "GND",
+      "class_name": "gnd",
+      "value": null,
+      "ports": [
+        "GND"
+      ],
+      "symbol": "gnd"
+    }
+  ],
+  "observed_components": [
+    {
+      "id": "V1",
+      "class_name": "voltage.dc",
+      "value": "5V",
+      "ports": [
+        "+",
+        "-"
+      ],
+      "symbol": "voltage.dc"
+    },
+    {
+      "id": "R1",
+      "class_name": "resistor",
+      "value": "330Ω",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "ansi_zigzag"
+    },
+    {
+      "id": "R2",
+      "class_name": "resistor",
+      "value": "10kΩ",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "ansi_zigzag"
+    },
+    {
+      "id": "LED1",
+      "class_name": "diode.light_emitting",
+      "value": null,
+      "ports": [
+        "+",
+        "-"
+      ],
+      "symbol": "diode.light_emitting"
+    },
+    {
+      "id": "Q1",
+      "class_name": "transistor.bjt",
+      "value": null,
+      "ports": [
+        "B",
+        "C",
+        "E"
+      ],
+      "symbol": "transistor.bjt"
+    },
+    {
+      "id": "GND",
+      "class_name": "gnd",
+      "value": null,
+      "ports": [
+        "GND"
+      ],
+      "symbol": "gnd"
+    }
+  ],
+  "expected_values": {
+    "V1": "5V",
+    "R1": "330Ω",
+    "R2": "10kΩ",
+    "LED1": null,
+    "Q1": null,
+    "GND": null
+  },
+  "observed_values": {
+    "V1": "5V",
+    "R1": "330Ω",
+    "R2": "10kΩ",
+    "LED1": null,
+    "Q1": null,
+    "GND": null
+  },
+  "expected_nets": {
+    "N1": [
+      "V1.+",
+      "R1.1",
+      "R2.1"
+    ],
+    "N2": [
+      "R1.2",
+      "LED1.+"
+    ],
+    "N3": [
+      "LED1.-",
+      "Q1.C"
+    ],
+    "N4": [
+      "R2.2",
+      "Q1.B"
+    ],
+    "N0": [
+      "Q1.E",
+      "V1.-",
+      "GND.GND"
+    ]
+  },
+  "observed_nets": {
+    "N1": [
+      "V1.+",
+      "R1.1",
+      "R2.1"
+    ],
+    "N2": [
+      "R1.2",
+      "LED1.+"
+    ],
+    "N3": [
+      "LED1.-",
+      "Q1.C"
+    ],
+    "N4": [
+      "R2.2",
+      "Q1.E"
+    ],
+    "N0": [
+      "Q1.B",
+      "V1.-",
+      "GND.GND"
+    ]
+  }
+}
