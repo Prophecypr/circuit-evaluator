@@ -8,7 +8,91 @@ from matplotlib.patches import Polygon
 from PIL import Image
 
 import src.reference_pack.render as render_module
-from src.reference_pack.render import ReferenceCanvas
+from src.reference_pack.layouts import LAYOUTS, validate_layout
+from src.reference_pack.render import ReferenceCanvas, draw_reference
+from src.reference_pack.specs import CIRCUITS
+
+
+def test_layouts_cover_exactly_the_ten_reference_circuits():
+    assert set(LAYOUTS) == {f"C{index:02d}" for index in range(1, 11)}
+
+
+def test_every_semantic_component_and_net_has_layout_data():
+    for cid, circuit in CIRCUITS.items():
+        validate_layout(circuit, LAYOUTS[cid])
+
+
+def test_layouts_keep_symbols_inside_page():
+    for layout in LAYOUTS.values():
+        for x, y, orientation in layout["components"].values():
+            assert 100 <= x <= 900
+            assert 100 <= y <= 600
+            assert orientation in {"h", "v"}
+
+
+@pytest.mark.parametrize(("section", "extra_key"), [("components", "X1"), ("hubs", "NX")])
+@pytest.mark.parametrize("mutation", ["missing", "extra"])
+def test_validate_layout_rejects_missing_or_extra_entries(section, extra_key, mutation):
+    circuit = CIRCUITS["C01"]
+    layout = {
+        "components": dict(LAYOUTS["C01"]["components"]),
+        "hubs": dict(LAYOUTS["C01"]["hubs"]),
+    }
+    if mutation == "missing":
+        layout[section].pop(next(iter(layout[section])))
+    else:
+        layout[section][extra_key] = (500, 300, "h") if section == "components" else (500, 300)
+
+    with pytest.raises(ValueError, match="C01"):
+        validate_layout(circuit, layout)
+
+
+def test_draw_reference_records_all_semantic_ports_and_orthogonal_routes():
+    circuit = CIRCUITS["C10"]
+    canvas = draw_reference(circuit, LAYOUTS[circuit.id])
+    try:
+        expected_ports = {
+            f"{component.id}.{port}"
+            for component in circuit.components
+            for port in component.ports
+        }
+        assert set(canvas.port_map) == expected_ports
+        assert set(canvas.route_records) == set(circuit.nets)
+
+        for net_id, paths in canvas.route_records.items():
+            assert len(paths) == len(circuit.nets[net_id])
+            for path in paths:
+                assert all(
+                    start[0] == end[0] or start[1] == end[1]
+                    for start, end in zip(path, path[1:])
+                )
+    finally:
+        plt.close(canvas.figure)
+
+
+def test_draw_reference_marks_only_nets_with_three_or_more_members():
+    for circuit in CIRCUITS.values():
+        canvas = draw_reference(circuit, LAYOUTS[circuit.id])
+        try:
+            expected_hubs = {
+                net_id: LAYOUTS[circuit.id]["hubs"][net_id]
+                for net_id, members in circuit.nets.items()
+                if len(members) >= 3
+            }
+            assert canvas.hub_records == expected_hubs
+        finally:
+            plt.close(canvas.figure)
+
+
+def test_draw_reference_uses_exact_visible_title():
+    circuit = CIRCUITS["C01"]
+    canvas = draw_reference(circuit, LAYOUTS[circuit.id])
+    try:
+        expected_title = f"{circuit.id}  {circuit.title}"
+        assert canvas.title == expected_title
+        assert canvas.axes.get_title() == expected_title
+    finally:
+        plt.close(canvas.figure)
 
 
 def test_resistor_is_zigzag_and_reference_hides_designator(tmp_path):

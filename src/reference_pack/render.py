@@ -7,6 +7,9 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.patches import Arc, Circle, FancyArrowPatch, Polygon
 
+from .layouts import Layout, validate_layout
+from .specs import CircuitSpec
+
 Point = tuple[float, float]
 Ports = dict[str, Point]
 
@@ -44,6 +47,9 @@ class ReferenceCanvas:
         self.title = title
         self.symbol_records: dict[str, str] = {}
         self.text_records: list[str] = []
+        self.port_map: dict[str, Point] = {}
+        self.route_records: dict[str, list[list[Point]]] = {}
+        self.hub_records: dict[str, Point] = {}
 
         self.figure, self.axes = plt.subplots(figsize=(11.69, 8.27))
         self.figure.patch.set_facecolor("white")
@@ -357,3 +363,47 @@ class ReferenceCanvas:
         )
         self._value(value, (x, y - 85))
         return self._ports("transistor.bjt", "v", center)
+
+
+def draw_reference(circuit: CircuitSpec, layout: Layout) -> ReferenceCanvas:
+    """Draw one semantic circuit using its deterministic orthogonal layout."""
+
+    validate_layout(circuit, layout)
+    title = f"{circuit.id}  {circuit.title}"
+    canvas = ReferenceCanvas(title)
+    canvas.axes.set_title(title, fontsize=19, pad=12)
+
+    for component in circuit.components:
+        x, y, orientation = layout["components"][component.id]
+        ports = canvas.component(
+            component.id,
+            component.class_name,
+            component.value,
+            (x, y),
+            orientation,
+        )
+        for label, point in ports.items():
+            canvas.port_map[f"{component.id}.{label}"] = point
+
+    for net_id, members in circuit.nets.items():
+        hub = layout["hubs"][net_id]
+        net_paths: list[list[Point]] = []
+        for member in members:
+            port = canvas.port_map[member]
+            candidate_path = [port, (hub[0], port[1]), hub]
+            path = [
+                point
+                for index, point in enumerate(candidate_path)
+                if index == 0 or point != candidate_path[index - 1]
+            ]
+            canvas._line(path)
+            net_paths.append(path)
+        canvas.route_records[net_id] = net_paths
+
+        if len(members) >= 3:
+            canvas.axes.add_patch(
+                Circle(hub, 5, facecolor="black", edgecolor="black", linewidth=0)
+            )
+            canvas.hub_records[net_id] = hub
+
+    return canvas
