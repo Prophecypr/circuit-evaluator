@@ -86,6 +86,16 @@ def validate_circuit(spec: CircuitSpec) -> None:
             f"{spec.id}: duplicate component ids: {', '.join(duplicate_ids)}"
         )
 
+    for item in spec.components:
+        duplicate_port_labels = sorted(
+            port for port, count in Counter(item.ports).items() if count > 1
+        )
+        if duplicate_port_labels:
+            raise ValueError(
+                f"{spec.id}: component {item.id} has duplicate port labels: "
+                f"{', '.join(duplicate_port_labels)}"
+            )
+
     declared_ports = {
         f"{item.id}.{port}"
         for item in spec.components
@@ -294,4 +304,3 @@ CIRCUITS: dict[str, CircuitSpec] = {
 
 for _circuit in CIRCUITS.values():
     validate_circuit(_circuit)
-
