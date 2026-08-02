@@ -709,3 +709,23 @@ def test_generate_pack_writes_complete_versioned_pack_without_overwrite(tmp_path
         if path.is_file()
     }
     assert after_retry == before_retry
+
+
+def test_generate_pack_is_byte_deterministic_across_independent_outputs(tmp_path):
+    from generate_blind_reference_pack import generate_pack
+
+    first_dir = generate_pack(tmp_path / "first")
+    second_dir = generate_pack(tmp_path / "second")
+
+    first_files = {
+        path.relative_to(first_dir).as_posix(): path.read_bytes()
+        for path in first_dir.rglob("*")
+        if path.is_file()
+    }
+    second_files = {
+        path.relative_to(second_dir).as_posix(): path.read_bytes()
+        for path in second_dir.rglob("*")
+        if path.is_file()
+    }
+
+    assert second_files == first_files

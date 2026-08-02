@@ -135,9 +135,16 @@ class ReferenceCanvas:
     def save(self, path: str | Path) -> None:
         """Save SVG or raster output and release the Matplotlib figure."""
 
+        path = Path(path)
+        metadata = {"Date": None} if path.suffix.lower() == ".svg" else None
         try:
-            with matplotlib.rc_context({"svg.fonttype": "none"}):
-                self.figure.savefig(path, dpi=200)
+            with matplotlib.rc_context(
+                {
+                    "svg.fonttype": "none",
+                    "svg.hashsalt": "blind-reference-pack-v1",
+                }
+            ):
+                self.figure.savefig(path, dpi=200, metadata=metadata)
         finally:
             plt.close(self.figure)
 
