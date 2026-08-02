@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, TypedDict
+from typing import Literal, NotRequired, TypedDict
 
 from .specs import CircuitSpec
 
@@ -14,6 +14,7 @@ Point = tuple[int, int]
 class Layout(TypedDict):
     components: dict[str, ComponentPlacement]
     hubs: dict[str, Point]
+    waypoints: NotRequired[dict[str, dict[str, tuple[Point, ...]]]]
 
 
 LAYOUTS: dict[str, Layout] = {
@@ -23,7 +24,7 @@ LAYOUTS: dict[str, Layout] = {
             "R1": (500, 160, "h"),
             "GND": (500, 560, "v"),
         },
-        "hubs": {"N1": (300, 160), "N0": (500, 500)},
+        "hubs": {"N1": (300, 160), "N0": (650, 500)},
     },
     "C02": {
         "components": {
@@ -32,7 +33,7 @@ LAYOUTS: dict[str, Layout] = {
             "R2": (690, 150, "h"),
             "GND": (500, 560, "v"),
         },
-        "hubs": {"N1": (260, 150), "N2": (540, 150), "N0": (500, 500)},
+        "hubs": {"N1": (260, 150), "N2": (540, 150), "N0": (850, 500)},
     },
     "C03": {
         "components": {
@@ -42,6 +43,7 @@ LAYOUTS: dict[str, Layout] = {
             "GND": (760, 560, "v"),
         },
         "hubs": {"N1": (280, 350), "N0": (720, 500)},
+        "waypoints": {"N0": {"V1.-": ((150, 540), (720, 540))}},
     },
     "C04": {
         "components": {
@@ -95,7 +97,7 @@ LAYOUTS: dict[str, Layout] = {
             "R2": (800, 340, "v"),
             "GND": (610, 580, "v"),
         },
-        "hubs": {"N1": (250, 150), "N2": (610, 220), "N0": (610, 520)},
+        "hubs": {"N1": (250, 150), "N2": (610, 220), "N0": (610, 420)},
     },
     "C09": {
         "components": {
@@ -112,6 +114,12 @@ LAYOUTS: dict[str, Layout] = {
             "N3": (650, 330),
             "N4": (500, 420),
             "N0": (620, 550),
+        },
+        "waypoints": {
+            "N0": {
+                "V1.-": ((110, 550),),
+                "Q1.E": ((720, 485), (720, 550)),
+            }
         },
     },
     "C10": {
@@ -130,6 +138,18 @@ LAYOUTS: dict[str, Layout] = {
             "NR": (720, 350),
             "N0": (540, 570),
         },
+        "waypoints": {
+            "N1": {
+                "V1.+": ((100, 100),),
+                "R1.1": ((360, 100),),
+                "R3.1": ((720, 100),),
+            },
+            "N0": {
+                "V1.-": ((100, 570),),
+                "R2.2": ((360, 570),),
+                "R4.2": ((720, 570),),
+            },
+        },
     },
 }
 
@@ -141,3 +161,23 @@ def validate_layout(circuit: CircuitSpec, layout: Layout) -> None:
         raise ValueError(f"{circuit.id}: component layout mismatch")
     if set(layout["hubs"]) != set(circuit.nets):
         raise ValueError(f"{circuit.id}: net hub mismatch")
+
+    for net_id, member_waypoints in layout.get("waypoints", {}).items():
+        if net_id not in circuit.nets:
+            raise ValueError(f"{circuit.id}: waypoint net {net_id!r} is not declared")
+        for member, points in member_waypoints.items():
+            if member not in circuit.nets[net_id]:
+                raise ValueError(
+                    f"{circuit.id}: waypoint member {member!r} is not in net {net_id}"
+                )
+            for point in points:
+                if (
+                    not isinstance(point, tuple)
+                    or len(point) != 2
+                    or not all(isinstance(value, (int, float)) for value in point)
+                    or not 0 <= point[0] <= 1000
+                    or not 0 <= point[1] <= 700
+                ):
+                    raise ValueError(
+                        f"{circuit.id}: waypoint coordinate {point!r} is invalid"
+                    )

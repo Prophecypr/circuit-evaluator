@@ -1,10 +1,12 @@
 """Code-native rendering primitives for canonical circuit reference images."""
 
+from functools import cache
 from pathlib import Path
 from typing import Final
 
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib import font_manager
 from matplotlib.patches import Arc, Circle, FancyArrowPatch, Polygon
 
 from .layouts import Layout, validate_layout
@@ -38,6 +40,29 @@ _ORIENTATIONS: Final = {
     "diode.zener": {"h", "v"},
     "transistor.bjt": {"v"},
 }
+
+_CJK_FONT_FAMILIES: Final = (
+    "Noto Sans SC",
+    "Microsoft YaHei",
+    "SimHei",
+    "DengXian",
+)
+
+
+@cache
+def _cjk_font_properties() -> font_manager.FontProperties:
+    """Return the first installed font from the supported CJK fallback list."""
+
+    for family in _CJK_FONT_FAMILIES:
+        try:
+            path = font_manager.findfont(family, fallback_to_default=False)
+        except ValueError:
+            continue
+        return font_manager.FontProperties(fname=path)
+    raise RuntimeError(
+        "no supported Chinese title font found; install one of: "
+        + ", ".join(_CJK_FONT_FAMILIES)
+    )
 
 
 class ReferenceCanvas:
@@ -371,7 +396,12 @@ def draw_reference(circuit: CircuitSpec, layout: Layout) -> ReferenceCanvas:
     validate_layout(circuit, layout)
     title = f"{circuit.id}  {circuit.title}"
     canvas = ReferenceCanvas(title)
-    canvas.axes.set_title(title, fontsize=19, pad=12)
+    canvas.axes.set_title(
+        title,
+        fontsize=19,
+        pad=12,
+        fontproperties=_cjk_font_properties(),
+    )
 
     for component in circuit.components:
         x, y, orientation = layout["components"][component.id]
@@ -390,12 +420,25 @@ def draw_reference(circuit: CircuitSpec, layout: Layout) -> ReferenceCanvas:
         net_paths: list[list[Point]] = []
         for member in members:
             port = canvas.port_map[member]
-            candidate_path = [port, (hub[0], port[1]), hub]
+            waypoints = layout.get("waypoints", {}).get(net_id, {}).get(member)
+            candidate_path = (
+                [port, *waypoints, hub]
+                if waypoints is not None
+                else [port, (hub[0], port[1]), hub]
+            )
             path = [
                 point
                 for index, point in enumerate(candidate_path)
                 if index == 0 or point != candidate_path[index - 1]
             ]
+            if any(
+                start[0] != end[0] and start[1] != end[1]
+                for start, end in zip(path, path[1:])
+            ):
+                plt.close(canvas.figure)
+                raise ValueError(
+                    f"{circuit.id}: {net_id}/{member} route is not orthogonal"
+                )
             canvas._line(path)
             net_paths.append(path)
         canvas.route_records[net_id] = net_paths

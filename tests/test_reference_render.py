@@ -1,4 +1,5 @@
 import importlib
+import warnings
 from xml.etree import ElementTree
 
 import matplotlib
@@ -11,6 +12,63 @@ import src.reference_pack.render as render_module
 from src.reference_pack.layouts import LAYOUTS, validate_layout
 from src.reference_pack.render import ReferenceCanvas, draw_reference
 from src.reference_pack.specs import CIRCUITS
+
+
+def _copy_layout(circuit_id):
+    source = LAYOUTS[circuit_id]
+    layout = {
+        "components": dict(source["components"]),
+        "hubs": dict(source["hubs"]),
+    }
+    if "waypoints" in source:
+        layout["waypoints"] = {
+            net_id: dict(member_waypoints)
+            for net_id, member_waypoints in source["waypoints"].items()
+        }
+    return layout
+
+
+def _route_path(canvas, circuit, net_id, member):
+    member_index = circuit.nets[net_id].index(member)
+    return canvas.route_records[net_id][member_index]
+
+
+def _between(value, first, second):
+    return min(first, second) <= value <= max(first, second)
+
+
+def _point_on_segment(point, start, end):
+    if start[0] == end[0] == point[0]:
+        return _between(point[1], start[1], end[1])
+    if start[1] == end[1] == point[1]:
+        return _between(point[0], start[0], end[0])
+    return False
+
+
+def _segments_intersect(first_start, first_end, second_start, second_end):
+    first_horizontal = first_start[1] == first_end[1]
+    second_horizontal = second_start[1] == second_end[1]
+    if first_horizontal and second_horizontal:
+        return (
+            first_start[1] == second_start[1]
+            and max(min(first_start[0], first_end[0]), min(second_start[0], second_end[0]))
+            <= min(max(first_start[0], first_end[0]), max(second_start[0], second_end[0]))
+        )
+    if not first_horizontal and not second_horizontal:
+        return (
+            first_start[0] == second_start[0]
+            and max(min(first_start[1], first_end[1]), min(second_start[1], second_end[1]))
+            <= min(max(first_start[1], first_end[1]), max(second_start[1], second_end[1]))
+        )
+    horizontal_start, horizontal_end = (
+        (first_start, first_end) if first_horizontal else (second_start, second_end)
+    )
+    vertical_start, vertical_end = (
+        (second_start, second_end) if first_horizontal else (first_start, first_end)
+    )
+    return _between(vertical_start[0], horizontal_start[0], horizontal_end[0]) and _between(
+        horizontal_start[1], vertical_start[1], vertical_end[1]
+    )
 
 
 def test_layouts_cover_exactly_the_ten_reference_circuits():
@@ -45,6 +103,196 @@ def test_validate_layout_rejects_missing_or_extra_entries(section, extra_key, mu
 
     with pytest.raises(ValueError, match="C01"):
         validate_layout(circuit, layout)
+
+
+@pytest.mark.parametrize(
+    ("waypoints", "message"),
+    [
+        ({"NX": {"V1.+": ((200, 200),)}}, "waypoint net"),
+        ({"N1": {"V1.-": ((200, 200),)}}, "waypoint member"),
+        ({"N1": {"V1.+": ((1001, 200),)}}, "waypoint coordinate"),
+    ],
+)
+def test_validate_layout_rejects_invalid_waypoint_data(waypoints, message):
+    circuit = CIRCUITS["C01"]
+    layout = _copy_layout(circuit.id)
+    layout["waypoints"] = waypoints
+
+    with pytest.raises(ValueError, match=rf"C01: {message}"):
+        validate_layout(circuit, layout)
+
+
+def test_draw_reference_rejects_diagonal_waypoint_routes():
+    circuit = CIRCUITS["C01"]
+    layout = _copy_layout(circuit.id)
+    layout["waypoints"] = {"N1": {"V1.+": ((200, 200),)}}
+
+    with pytest.raises(ValueError, match=r"C01: N1/V1\.\+ route is not orthogonal"):
+        canvas = draw_reference(circuit, layout)
+        plt.close(canvas.figure)
+
+
+def test_layouts_use_reviewed_hubs_and_member_waypoints():
+    assert LAYOUTS["C01"]["hubs"]["N0"] == (650, 500)
+    assert LAYOUTS["C02"]["hubs"]["N0"] == (850, 500)
+    assert LAYOUTS["C03"]["waypoints"]["N0"]["V1.-"] == (
+        (150, 540),
+        (720, 540),
+    )
+    assert LAYOUTS["C08"]["hubs"]["N0"] == (610, 420)
+    assert LAYOUTS["C09"]["waypoints"]["N0"] == {
+        "V1.-": ((110, 550),),
+        "Q1.E": ((720, 485), (720, 550)),
+    }
+    assert LAYOUTS["C10"]["waypoints"] == {
+        "N1": {
+            "V1.+": ((100, 100),),
+            "R1.1": ((360, 100),),
+            "R3.1": ((720, 100),),
+        },
+        "N0": {
+            "V1.-": ((100, 570),),
+            "R2.2": ((360, 570),),
+            "R4.2": ((720, 570),),
+        },
+    }
+
+
+def test_draw_reference_uses_reviewed_waypoint_paths():
+    expected_paths = {
+        ("C03", "N0", "V1.-"): [(150, 420), (150, 540), (720, 540), (720, 500)],
+        ("C09", "N0", "V1.-"): [(110, 420), (110, 550), (620, 550)],
+        ("C09", "N0", "Q1.E"): [
+            (695, 485),
+            (720, 485),
+            (720, 550),
+            (620, 550),
+        ],
+        ("C10", "N1", "V1.+"): [(100, 280), (100, 100), (540, 100)],
+        ("C10", "N1", "R1.1"): [(360, 120), (360, 100), (540, 100)],
+        ("C10", "N1", "R3.1"): [(720, 120), (720, 100), (540, 100)],
+        ("C10", "N0", "V1.-"): [(100, 420), (100, 570), (540, 570)],
+        ("C10", "N0", "R2.2"): [(360, 560), (360, 570), (540, 570)],
+        ("C10", "N0", "R4.2"): [(720, 560), (720, 570), (540, 570)],
+    }
+    canvases = {}
+    try:
+        for circuit_id, net_id, member in expected_paths:
+            circuit = CIRCUITS[circuit_id]
+            if circuit_id not in canvases:
+                canvases[circuit_id] = draw_reference(circuit, LAYOUTS[circuit_id])
+            canvas = canvases[circuit_id]
+            assert _route_path(canvas, circuit, net_id, member) == expected_paths[
+                (circuit_id, net_id, member)
+            ]
+    finally:
+        for canvas in canvases.values():
+            plt.close(canvas.figure)
+
+
+def test_reference_routes_do_not_create_cross_net_false_connections():
+    failures = []
+    for circuit in CIRCUITS.values():
+        canvas = draw_reference(circuit, LAYOUTS[circuit.id])
+        try:
+            segments = [
+                (net_id, start, end)
+                for net_id, paths in canvas.route_records.items()
+                for path in paths
+                for start, end in zip(path, path[1:])
+            ]
+            for index, (first_net, first_start, first_end) in enumerate(segments):
+                for second_net, second_start, second_end in segments[index + 1 :]:
+                    if first_net == second_net:
+                        continue
+                    if _segments_intersect(
+                        first_start,
+                        first_end,
+                        second_start,
+                        second_end,
+                    ):
+                        failures.append(
+                            f"{circuit.id}: {first_net} {first_start}->{first_end} "
+                            f"intersects {second_net} {second_start}->{second_end}"
+                        )
+
+            port_nets = {
+                member: net_id
+                for net_id, members in circuit.nets.items()
+                for member in members
+            }
+            for net_id, start, end in segments:
+                for member, point in canvas.port_map.items():
+                    if port_nets[member] != net_id and _point_on_segment(point, start, end):
+                        failures.append(
+                            f"{circuit.id}: {net_id} {start}->{end} crosses {member}"
+                        )
+        finally:
+            plt.close(canvas.figure)
+
+    assert not failures, "\n".join(failures)
+
+
+@pytest.mark.parametrize(
+    ("circuit_id", "net_id", "member"),
+    [("C01", "N0", "R1.2"), ("C02", "N0", "R2.2")],
+)
+def test_resistor_output_routes_do_not_turn_back_into_zigzag(circuit_id, net_id, member):
+    circuit = CIRCUITS[circuit_id]
+    canvas = draw_reference(circuit, LAYOUTS[circuit.id])
+    try:
+        centers = {
+            component_id: placement[:2]
+            for component_id, placement in LAYOUTS[circuit.id]["components"].items()
+        }
+        path = _route_path(canvas, circuit, net_id, member)
+        component_id = member.rsplit(".", 1)[0]
+        port, next_point = path[:2]
+        center = centers[component_id]
+        route_vector = (next_point[0] - port[0], next_point[1] - port[1])
+        inward_vector = (center[0] - port[0], center[1] - port[1])
+
+        assert sum(a * b for a, b in zip(route_vector, inward_vector)) <= 0
+    finally:
+        plt.close(canvas.figure)
+
+
+def test_all_reference_outputs_use_cjk_titles_and_fixed_page_geometry(tmp_path):
+    output_paths = []
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        for circuit in CIRCUITS.values():
+            for suffix in ("svg", "png"):
+                output = tmp_path / f"{circuit.id}.{suffix}"
+                canvas = draw_reference(circuit, LAYOUTS[circuit.id])
+                title_font = canvas.axes.title.get_fontproperties().get_name()
+                assert title_font in {
+                    "Noto Sans SC",
+                    "Microsoft YaHei",
+                    "SimHei",
+                    "DengXian",
+                }
+                canvas.save(output)
+                output_paths.append(output)
+
+                assert output.stat().st_size > 0
+                if suffix == "png":
+                    with Image.open(output) as image:
+                        assert image.size == (2338, 1654)
+                        image.verify()
+                else:
+                    root = ElementTree.parse(output).getroot()
+                    assert root.attrib["viewBox"] == "0 0 841.68 595.44"
+                    assert "<text" in output.read_text(encoding="utf-8")
+
+    missing_glyph_warnings = [
+        str(item.message)
+        for item in caught
+        if "Glyph" in str(item.message) and "missing" in str(item.message)
+    ]
+    assert len(output_paths) == 20
+    assert missing_glyph_warnings == []
+    assert plt.get_fignums() == []
 
 
 def test_draw_reference_records_all_semantic_ports_and_orthogonal_routes():
