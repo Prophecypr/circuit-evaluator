@@ -604,6 +604,26 @@ def test_generate_pack_writes_complete_versioned_pack_without_overwrite(tmp_path
     }
     assert all((output_dir / name).is_file() for name in required_files)
 
+    text_paths = sorted(
+        path for path in output_dir.rglob("*") if path.is_file() and path.suffix != ".png"
+    )
+    crlf_paths = [
+        path.relative_to(output_dir).as_posix()
+        for path in text_paths
+        if b"\r\n" in path.read_bytes()
+    ]
+    collection_protocol = (output_dir / "collection_protocol.md").read_text(
+        encoding="utf-8"
+    )
+    assert {
+        "crlf_paths": crlf_paths,
+        "scanner_rule_present": "不得使用扫描仪或扫描应用替代手机拍摄"
+        in collection_protocol,
+    } == {
+        "crlf_paths": [],
+        "scanner_rule_present": True,
+    }
+
     for circuit_id, svg_path, png_path, answer_path in zip(
         circuit_ids, svg_paths, png_paths, answer_paths
     ):

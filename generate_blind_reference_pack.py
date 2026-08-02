@@ -32,6 +32,8 @@ COLLECTION_PROTOCOL = """# 盲测参考图采集协议
 
 每张纸面原稿用手机拍摄两个域：
 
+不得使用扫描仪或扫描应用替代手机拍摄。
+
 - `controlled`：相机位于纸面正上方，光照均匀，纸张平整，尽量避免透视变形。
 - `handheld`：自然手持拍摄，允许轻微透视和光照变化，但电路仍须完整、清晰。
 
@@ -71,6 +73,12 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _write_text(path: Path, text: str) -> None:
+    """Write UTF-8 text with byte-stable LF line endings on every platform."""
+
+    path.write_bytes(text.replace("\r\n", "\n").replace("\r", "\n").encode("utf-8"))
+
+
 def write_checksums(output_dir: str | Path) -> Path:
     """Write deterministic checksums for every generated file except itself."""
 
@@ -88,7 +96,7 @@ def write_checksums(output_dir: str | Path) -> Path:
         f"{_sha256_file(output_dir / relative_path)}  {relative_path.as_posix()}"
         for relative_path in relative_paths
     ]
-    checksum_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _write_text(checksum_path, "\n".join(lines) + "\n")
     return checksum_path
 
 
@@ -107,8 +115,10 @@ def generate_pack(output_dir: str | Path) -> Path:
     answer_key_dir.mkdir(parents=True, exist_ok=True)
 
     for spec in CIRCUITS.values():
+        svg_path = references_dir / f"{spec.id}_reference.svg"
         svg_canvas = draw_reference(spec, LAYOUTS[spec.id])
-        svg_canvas.save(references_dir / f"{spec.id}_reference.svg")
+        svg_canvas.save(svg_path)
+        _write_text(svg_path, svg_path.read_text(encoding="utf-8"))
 
         png_canvas = draw_reference(spec, LAYOUTS[spec.id])
         png_canvas.save(references_dir / f"{spec.id}_reference.png")
@@ -121,23 +131,14 @@ def generate_pack(output_dir: str | Path) -> Path:
             "nets": spec.nets,
         }
         answer_path = answer_key_dir / f"{spec.id}_gt.json"
-        answer_path.write_text(
+        _write_text(
+            answer_path,
             json.dumps(answer, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
         )
 
-    (output_dir / "collection_protocol.md").write_text(
-        COLLECTION_PROTOCOL,
-        encoding="utf-8",
-    )
-    (output_dir / "annotation_protocol.md").write_text(
-        ANNOTATION_PROTOCOL,
-        encoding="utf-8",
-    )
-    (output_dir / "manifest_template.csv").write_text(
-        MANIFEST_HEADER,
-        encoding="utf-8",
-    )
+    _write_text(output_dir / "collection_protocol.md", COLLECTION_PROTOCOL)
+    _write_text(output_dir / "annotation_protocol.md", ANNOTATION_PROTOCOL)
+    _write_text(output_dir / "manifest_template.csv", MANIFEST_HEADER)
     write_checksums(output_dir)
     return output_dir
 
