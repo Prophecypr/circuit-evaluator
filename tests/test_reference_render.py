@@ -1,7 +1,13 @@
+import importlib
+from xml.etree import ElementTree
+
+import matplotlib
 import matplotlib.pyplot as plt
 import pytest
 from matplotlib.patches import Polygon
+from PIL import Image
 
+import src.reference_pack.render as render_module
 from src.reference_pack.render import ReferenceCanvas
 
 
@@ -141,6 +147,78 @@ def test_save_writes_nonempty_png(tmp_path):
     assert output.exists()
     assert output.stat().st_size > 8
     assert output.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def test_import_and_svg_save_preserve_caller_fonttype(tmp_path):
+    original_fonttype = matplotlib.rcParams["svg.fonttype"]
+    try:
+        matplotlib.rcParams["svg.fonttype"] = "path"
+        reloaded = importlib.reload(render_module)
+
+        assert matplotlib.rcParams["svg.fonttype"] == "path"
+
+        canvas = reloaded.ReferenceCanvas("font isolation")
+        canvas.component("R1", "resistor", "2.2kΩ", (500, 300), "h")
+        output = tmp_path / "isolated.svg"
+        canvas.save(output)
+        svg = output.read_text(encoding="utf-8")
+
+        assert matplotlib.rcParams["svg.fonttype"] == "path"
+        assert "<text" in svg
+        assert "2.2kΩ" in svg
+    finally:
+        matplotlib.rcParams["svg.fonttype"] = original_fonttype
+
+
+def test_png_and_svg_outputs_keep_fixed_a4_landscape_page(tmp_path):
+    variants = [
+        ("R1", "resistor", "1kΩ", (180, 150), "h"),
+        ("V1", "voltage.dc", "1234567890mV", (800, 550), "v"),
+    ]
+    png_paths = []
+    svg_paths = []
+
+    for index, component_args in enumerate(variants):
+        png_path = tmp_path / f"page_{index}.png"
+        png_canvas = ReferenceCanvas(f"png {index}")
+        png_canvas.component(*component_args)
+        png_canvas.save(png_path)
+        png_paths.append(png_path)
+
+        svg_path = tmp_path / f"page_{index}.svg"
+        svg_canvas = ReferenceCanvas(f"svg {index}")
+        svg_canvas.component(*component_args)
+        svg_canvas.save(svg_path)
+        svg_paths.append(svg_path)
+
+    with Image.open(png_paths[0]) as first_png, Image.open(png_paths[1]) as second_png:
+        assert first_png.size == second_png.size == (2338, 1654)
+
+    svg_pages = [ElementTree.parse(path).getroot() for path in svg_paths]
+    svg_dimensions = [
+        (page.attrib["width"], page.attrib["height"], page.attrib["viewBox"])
+        for page in svg_pages
+    ]
+    assert svg_dimensions[0] == svg_dimensions[1] == (
+        "841.68pt",
+        "595.44pt",
+        "0 0 841.68 595.44",
+    )
+
+
+def test_save_closes_figure_when_savefig_raises(tmp_path, monkeypatch):
+    canvas = ReferenceCanvas("save failure")
+    figure_number = canvas.figure.number
+
+    def fail_savefig(*args, **kwargs):
+        raise RuntimeError("save failed")
+
+    monkeypatch.setattr(canvas.figure, "savefig", fail_savefig)
+
+    with pytest.raises(RuntimeError, match="save failed"):
+        canvas.save(tmp_path / "failure.svg")
+
+    assert figure_number not in plt.get_fignums()
 
 
 @pytest.mark.parametrize(

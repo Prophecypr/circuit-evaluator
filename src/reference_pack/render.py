@@ -7,9 +7,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.patches import Arc, Circle, FancyArrowPatch, Polygon
 
-
-matplotlib.rcParams["svg.fonttype"] = "none"
-
 Point = tuple[float, float]
 Ports = dict[str, Point]
 
@@ -107,8 +104,11 @@ class ReferenceCanvas:
     def save(self, path: str | Path) -> None:
         """Save SVG or raster output and release the Matplotlib figure."""
 
-        self.figure.savefig(path, dpi=200, bbox_inches="tight", pad_inches=0.08)
-        plt.close(self.figure)
+        try:
+            with matplotlib.rc_context({"svg.fonttype": "none"}):
+                self.figure.savefig(path, dpi=200)
+        finally:
+            plt.close(self.figure)
 
     def _ports(self, class_name: str, orientation: str, center: Point) -> Ports:
         x, y = center
