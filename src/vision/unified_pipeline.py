@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from ultralytics import YOLO
 from src.llm import ask
 import torch
-from src.vision.train_ocr import load_trained_model, predict as crnn_predict
+from src.vision.ocr_v2.runtime import load_ocr_runtime
 import pytesseract
 pytesseract.pytesseract.tesseract_cmd = r"E:\Tesseract-OCR\tesseract.exe"
 
@@ -46,6 +46,7 @@ DEFAULT_CONFIG = {
     "use_component_mask": True,
     "skip_llm": False,
     "save_artifacts": True,
+    "ocr_model_path": "runs/ocr_crnn_hand_v2/best.pt",
 }
 
 # CGHD → HCD name mapping
@@ -362,13 +363,11 @@ def add_correction(ocr_text, correct_value):
 # Lazy model loading
 # ---------------------------------------------------------------------------
 _CGH_MODEL = None
-_OCR_MODEL = None
-_OCR_CHARS = ""
-_OCR_ITOC = {}
-_OCR_IMG_H = 32
+_OCR_RUNTIME = None
+_OCR_MODEL_PATH = None
 
-def _load_models():
-    global _CGH_MODEL, _OCR_MODEL, _OCR_CHARS, _OCR_ITOC, _OCR_IMG_H
+def _load_models(config=None):
+    global _CGH_MODEL, _OCR_RUNTIME, _OCR_MODEL_PATH
     if _CGH_MODEL is None:
         cghd_path = os.path.join(MODELS_DIR, "cghd_61cls", "weights", "best.pt")
         if not os.path.isfile(cghd_path):
@@ -376,10 +375,24 @@ def _load_models():
         _CGH_MODEL = YOLO(cghd_path)
         print(f"YOLO: CGHD 61-class loaded ({len(_CGH_MODEL.names)} classes)")
 
-    if _OCR_MODEL is None:
-        _OCR_MODEL, _OCR_CHARS, _, _OCR_ITOC, _OCR_IMG_H = load_trained_model("runs/ocr_crnn_machine/best.pt")
-        print(f"OCR: CRNN loaded ({len(_OCR_CHARS)} chars)")
+    active_config = DEFAULT_CONFIG if config is None else config
+    ocr_model_path = active_config.get(
+        "ocr_model_path", DEFAULT_CONFIG["ocr_model_path"]
+    )
+    if _OCR_RUNTIME is None or _OCR_MODEL_PATH != ocr_model_path:
+        _OCR_RUNTIME = load_ocr_runtime(ocr_model_path)
+        _OCR_MODEL_PATH = ocr_model_path
+        print(
+            f"OCR: {_OCR_RUNTIME.backend} loaded "
+            f"({len(_OCR_RUNTIME.chars)} chars, {ocr_model_path})"
+        )
     return _CGH_MODEL
+
+
+def _predict_ocr(crop):
+    if _OCR_RUNTIME is None:
+        raise RuntimeError("OCR runtime has not been loaded")
+    return _OCR_RUNTIME.predict(crop)
 
 # ---------------------------------------------------------------------------
 # Sobel orientation detection
@@ -1313,7 +1326,7 @@ def process_image(img_path, config=None):
     print(f"  {img_name}")
     print(f"{'='*60}")
 
-    cgh_model = _load_models()
+    cgh_model = _load_models(config)
     img = cv2.imread(img_path)
     if img is None:
         print(f"ERROR: Cannot read {img_path}")
@@ -1503,7 +1516,7 @@ def process_image(img_path, config=None):
         crop = gray[y1:y2, x1:x2]
         if crop.size == 0:
             continue
-        raw = crnn_predict(_OCR_MODEL, crop, _OCR_CHARS, _OCR_ITOC, _OCR_IMG_H)
+        raw = _predict_ocr(crop)
         raw = _clean_ocr(raw)
         corrections = _load_corrections()
         raw = _apply_corrections(raw, corrections)
