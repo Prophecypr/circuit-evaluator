@@ -88,10 +88,19 @@ def test_pipeline_defaults_enable_terminal_components_with_one_port():
     assert unified_pipeline.DESIG["Terminal"] == "T"
 
 
+def test_publication_selected_defaults_match_best_full50_configuration():
+    from src.vision import unified_pipeline
+
+    assert unified_pipeline.DEFAULT_CONFIG["use_strict_p2j"] is True
+    assert unified_pipeline.DEFAULT_CONFIG["use_outward_skeleton_trace"] is True
+    assert unified_pipeline.DEFAULT_CONFIG["use_strict_jj"] is True
+    assert unified_pipeline.DEFAULT_CONFIG["use_crossing_semantics"] is False
+
+
 def test_pipeline_exposes_strict_jj_feature_flags():
     from src.vision import unified_pipeline
 
-    assert unified_pipeline.DEFAULT_CONFIG["use_strict_jj"] is False
+    assert unified_pipeline.DEFAULT_CONFIG["use_strict_jj"] is True
     assert unified_pipeline.DEFAULT_CONFIG["use_crossing_semantics"] is False
 
 

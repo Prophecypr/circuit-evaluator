@@ -357,3 +357,48 @@ def test_merge_wiring_reliability_shards_requires_exact_unique_coverage(tmp_path
         run_experiments.merge_wiring_reliability_shards(
             [shard_a, shard_a], tmp_path / "duplicate-merge", expected_count=2,
         )
+
+
+def test_recover_complete_wiring_predictions_ignores_incomplete_images(tmp_path):
+    benchmark = tmp_path / "benchmark"
+    partial = tmp_path / "partial"
+    benchmark.mkdir()
+    components = [
+        {"xyxy": [0, 0, 10, 10], "ports": [[0, 5]], "labels": ["1"], "designator": "R1"},
+        {"xyxy": [20, 0, 30, 10], "ports": [[20, 5]], "labels": ["1"], "designator": "R2"},
+    ]
+    prediction = {
+        "components": [
+            {"xyxy": [0, 0, 10, 10], "ports": [[0, 5]]},
+            {"xyxy": [20, 0, 30, 10], "ports": [[20, 5]]},
+        ],
+        "raw_groups": [[[0, 0], [1, 0]]],
+        "evaluation": "(LLM skipped for experiment)",
+        "wiring_trace": {"events": [], "summary": {}},
+    }
+    for stem in ("a", "b"):
+        _seed_benchmark_case(benchmark, stem, ".jpg")
+        (benchmark / "detections" / f"{stem}.json").write_text(
+            json.dumps({"components": components}), encoding="utf-8",
+        )
+    configs = build_wiring_reliability_configs()
+    for config_name in configs:
+        path = partial / "predictions" / config_name / "a.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(prediction), encoding="utf-8")
+    for config_name in list(configs)[:-1]:
+        path = partial / "predictions" / config_name / "b.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(prediction), encoding="utf-8")
+
+    output = run_experiments.recover_complete_wiring_predictions(
+        partial, tmp_path / "recovered", benchmark_dir=benchmark,
+    )
+
+    with (output / "experiment_results.csv").open(encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert len(rows) == 7
+    assert {row["image"] for row in rows} == {"a"}
+    metadata = json.loads((output / "run_metadata.json").read_text(encoding="utf-8"))
+    assert metadata["image_count"] == 1
+    assert metadata["recovered_from_partial_predictions"] is True

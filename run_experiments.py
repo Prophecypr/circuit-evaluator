@@ -682,6 +682,102 @@ def merge_wiring_reliability_shards(shard_dirs, output_dir, expected_count):
     return output
 
 
+def recover_complete_wiring_predictions(partial_dir, output_dir, benchmark_dir=BENCHMARK):
+    """Rebuild a valid shard from images whose seven prediction files are complete."""
+    partial_dir = Path(partial_dir)
+    configs = build_wiring_reliability_configs()
+    stems_by_config = {
+        config_name: {
+            path.stem for path in (partial_dir / "predictions" / config_name).glob("*.json")
+        }
+        for config_name in configs
+    }
+    complete_stems = set.intersection(*stems_by_config.values()) if stems_by_config else set()
+    if not complete_stems:
+        raise RuntimeError("partial directory contains no fully completed images")
+    cases = {stem: (image, gt, det) for stem, image, gt, det in get_image_list(benchmark_dir)}
+    unknown = sorted(complete_stems - set(cases))
+    if unknown:
+        raise RuntimeError(f"partial predictions are not benchmark cases: {unknown}")
+
+    output = resolve_output_dir(output_dir)
+    rows = []
+    for stem in sorted(complete_stems):
+        _, gt_path, det_path = cases[stem]
+        gt_groups = parse_gt(gt_path)
+        with open(det_path, encoding="utf-8") as handle:
+            det_comps = json.load(handle)["components"]
+        for config_name in configs:
+            source = partial_dir / "predictions" / config_name / f"{stem}.json"
+            result = json.loads(source.read_text(encoding="utf-8"))
+            if result.get("evaluation") != "(LLM skipped for experiment)":
+                raise RuntimeError(f"{stem}/{config_name}: prediction did not skip LLM")
+            metrics = evaluate(result, gt_groups, det_comps)
+            stage_summary = result.get("wiring_trace", {}).get("summary", {})
+            rows.append({
+                "image": stem, "config": config_name,
+                "n_components": len(det_comps), **metrics,
+                "stage_summary": json.dumps(stage_summary, ensure_ascii=False, sort_keys=True),
+                "stage_summary_raw": stage_summary, "error": "",
+            })
+            destination = output / "predictions" / config_name / source.name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+
+    columns = [
+        "image", "config", "n_components", "n_gt_groups", "n_pred_groups",
+        "edge_tp", "edge_fp", "edge_fn", "edge_precision", "edge_recall", "edge_f1",
+        "port_correct_rate", "fp_rate", "fn_rate", "group_accuracy",
+        "comp_neighbor_accuracy", "stage_summary", "error",
+    ]
+    with (output / "experiment_results.csv").open(
+        "w", encoding="utf-8-sig", newline="",
+    ) as handle:
+        writer = csv.DictWriter(handle, fieldnames=columns, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
+
+    summary = {}
+    for config_name in configs:
+        config_rows = [row for row in rows if row["config"] == config_name]
+        tp = sum(int(row["edge_tp"]) for row in config_rows)
+        fp = sum(int(row["edge_fp"]) for row in config_rows)
+        fn = sum(int(row["edge_fn"]) for row in config_rows)
+        precision = tp / (tp + fp) if tp + fp else 0.0
+        recall = tp / (tp + fn) if tp + fn else 0.0
+        f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+        summary[config_name] = {
+            "edge": {
+                "tp": tp, "fp": fp, "fn": fn,
+                "precision": precision, "recall": recall, "f1": f1,
+            },
+            "macro_group_accuracy": float(np.mean([row["group_accuracy"] for row in config_rows])),
+            "macro_component_neighbor_accuracy": float(np.mean([row["comp_neighbor_accuracy"] for row in config_rows])),
+            "stage_summary": _aggregate_stage_summaries(config_rows),
+            "failed_images": 0,
+        }
+    _write_json(output / "wiring_reliability_summary.json", summary)
+    _write_json(output / "failures.json", [])
+    _write_json(output / "run_metadata.json", {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "suite": "wiring-reliability",
+        "git_revision": get_git_revision(),
+        "benchmark_dir": str(Path(benchmark_dir).resolve()),
+        "image_count": len(complete_stems),
+        "expected_case_count": len(complete_stems),
+        "selected_images": sorted(complete_stems),
+        "config_count": len(configs),
+        "configs": configs,
+        "ocr_model_sha256": _file_sha256(DEFAULT_CONFIG["ocr_model_path"]),
+        "detector_model_sha256": _file_sha256("runs/detect/cghd_61cls/weights/best.pt"),
+        "failure_count": 0,
+        "final_42_image_test_used": False,
+        "recovered_from_partial_predictions": True,
+        "partial_source": str(partial_dir.resolve()),
+    })
+    return output
+
+
 def main(output_dir=None):
     output_dir = resolve_output_dir(output_dir)
     images = get_image_list()
