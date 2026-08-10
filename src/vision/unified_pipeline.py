@@ -20,6 +20,7 @@ from src.vision.wiring_graph import (
     WiringTrace,
     accept_p2j_candidate,
     classify_connection_detection,
+    trace_port_to_anchor,
 )
 import pytesseract
 pytesseract.pytesseract.tesseract_cmd = r"E:\Tesseract-OCR\tesseract.exe"
@@ -52,6 +53,7 @@ DEFAULT_CONFIG = {
     "use_terminal_components": True,
     "use_wiring_trace": True,
     "use_strict_p2j": False,
+    "use_outward_skeleton_trace": False,
     "skip_llm": False,
     "save_artifacts": True,
     "ocr_model_path": "runs/ocr_crnn_hand_v2/best.pt",
@@ -1887,6 +1889,43 @@ def process_image(img_path, config=None):
         p2j_connections = []  # [(comp_idx, port_idx, jx, jy)]
         for ci, c in enumerate(components):
             for pi, (px, py) in enumerate(c["ports"]):
+                if (
+                    config["use_outward_skeleton_trace"]
+                    and skeleton is not None
+                    and junctions
+                ):
+                    traced = trace_port_to_anchor(
+                        skeleton=skeleton,
+                        port=(px, py),
+                        component_center=(c["cx"], c["cy"]),
+                        anchors=[(f"{jx},{jy}", (jx, jy)) for jx, jy in junctions],
+                        search_radius=skel_search,
+                        anchor_radius=max(6, int(10 * im_scale)),
+                        max_steps=max(100, int(600 * im_scale)),
+                    )
+                    if traced is not None:
+                        jx, jy = traced["anchor"]
+                        p2j_connections.append((ci, pi, jx, jy))
+                        wiring_trace.record(
+                            "p2j_trace",
+                            "p2j",
+                            True,
+                            traced["reason"],
+                            source={"component_index": ci, "port_index": pi},
+                            target={"junction": [jx, jy]},
+                            path_length=traced["path_length"],
+                            visited_pixels=traced["visited_pixels"],
+                        )
+                        continue
+                    wiring_trace.record(
+                        "p2j_trace",
+                        "p2j",
+                        False,
+                        "no_skeleton_path",
+                        source={"component_index": ci, "port_index": pi},
+                    )
+                    if config["use_strict_p2j"]:
+                        continue
                 best_j, best_d = None, pjr
                 best_reason = ""
                 considered = []

@@ -1,9 +1,12 @@
+import numpy as np
+
 from src.vision.wiring_graph import (
     WiringTrace,
     accept_p2j_candidate,
     classify_connection_detection,
     network_color,
     terminal_component,
+    trace_port_to_anchor,
 )
 
 
@@ -134,3 +137,55 @@ def test_strict_p2j_accepts_continuous_skeleton_path():
     )
 
     assert decision == (True, "continuous_skeleton_path")
+
+
+def test_trace_port_to_anchor_returns_first_outward_anchor():
+    skeleton = np.zeros((21, 41), dtype=np.uint8)
+    skeleton[10, 5:36] = 255
+
+    result = trace_port_to_anchor(
+        skeleton=skeleton,
+        port=(5, 10),
+        component_center=(0, 10),
+        anchors=[("J1", (20, 10)), ("J2", (35, 10))],
+        search_radius=2,
+        anchor_radius=2,
+        max_steps=100,
+    )
+
+    assert result["anchor_id"] == "J1"
+    assert result["anchor"] == (20, 10)
+    assert result["reason"] == "continuous_skeleton_path"
+
+
+def test_trace_port_to_anchor_rejects_anchor_behind_component():
+    skeleton = np.zeros((21, 41), dtype=np.uint8)
+    skeleton[10, 2:20] = 255
+
+    result = trace_port_to_anchor(
+        skeleton=skeleton,
+        port=(10, 10),
+        component_center=(0, 10),
+        anchors=[("behind", (2, 10))],
+        search_radius=2,
+        anchor_radius=2,
+        max_steps=100,
+    )
+
+    assert result is None
+
+
+def test_trace_port_to_anchor_returns_none_when_port_has_no_skeleton():
+    skeleton = np.zeros((21, 41), dtype=np.uint8)
+
+    result = trace_port_to_anchor(
+        skeleton=skeleton,
+        port=(5, 10),
+        component_center=(0, 10),
+        anchors=[("J1", (20, 10))],
+        search_radius=2,
+        anchor_radius=2,
+        max_steps=100,
+    )
+
+    assert result is None

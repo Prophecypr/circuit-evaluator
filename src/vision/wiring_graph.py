@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, deque
 from dataclasses import asdict, dataclass, field
 import hashlib
+import math
 from typing import Any, Iterable
 
 
@@ -135,3 +136,79 @@ def accept_p2j_candidate(
     if strict:
         return False, "no_skeleton_path"
     return True, "legacy_distance_fallback"
+
+
+def trace_port_to_anchor(
+    *,
+    skeleton,
+    port: tuple[int, int],
+    component_center: tuple[int, int],
+    anchors: Iterable[tuple[str, tuple[int, int]]],
+    search_radius: int,
+    anchor_radius: int,
+    max_steps: int,
+) -> dict[str, Any] | None:
+    """Follow skeleton pixels outward and stop at the first reachable anchor."""
+    height, width = skeleton.shape[:2]
+    px, py = map(int, port)
+    cx, cy = map(int, component_center)
+    outward = (px - cx, py - cy)
+    outward_norm = math.hypot(*outward)
+
+    def projection(x: int, y: int) -> float:
+        if outward_norm == 0:
+            return 0.0
+        return ((x - px) * outward[0] + (y - py) * outward[1]) / outward_norm
+
+    forward_anchors = [
+        (str(anchor_id), (int(point[0]), int(point[1])))
+        for anchor_id, point in anchors
+        if outward_norm == 0 or projection(int(point[0]), int(point[1])) > 0
+    ]
+    if not forward_anchors:
+        return None
+
+    starts: list[tuple[float, int, int]] = []
+    for y in range(max(0, py - search_radius), min(height, py + search_radius + 1)):
+        for x in range(max(0, px - search_radius), min(width, px + search_radius + 1)):
+            if skeleton[y, x] <= 0 or projection(x, y) < -1.0:
+                continue
+            starts.append((math.hypot(x - px, y - py), x, y))
+    if not starts:
+        return None
+    _, start_x, start_y = min(starts)
+
+    queue = deque([(start_x, start_y, 0)])
+    visited = {(start_x, start_y)}
+    while queue:
+        x, y, depth = queue.popleft()
+        reached = [
+            (math.hypot(x - ax, y - ay), anchor_id, (ax, ay))
+            for anchor_id, (ax, ay) in forward_anchors
+            if math.hypot(x - ax, y - ay) <= anchor_radius
+        ]
+        if reached:
+            _, anchor_id, anchor = min(reached, key=lambda item: (item[0], item[1]))
+            return {
+                "anchor_id": anchor_id,
+                "anchor": anchor,
+                "reason": "continuous_skeleton_path",
+                "path_length": depth,
+                "visited_pixels": len(visited),
+            }
+        if depth >= max_steps:
+            continue
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                if dx == 0 and dy == 0:
+                    continue
+                nx, ny = x + dx, y + dy
+                if not (0 <= nx < width and 0 <= ny < height):
+                    continue
+                if (nx, ny) in visited or skeleton[ny, nx] <= 0:
+                    continue
+                if projection(nx, ny) < -1.0:
+                    continue
+                visited.add((nx, ny))
+                queue.append((nx, ny, depth + 1))
+    return None
