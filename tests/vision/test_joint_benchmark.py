@@ -35,6 +35,7 @@ def test_pipeline_result_exposes_raw_detector_outputs():
     assert result["raw_junction_detections"][0]["label"] == "junction"
     assert result["raw_text_detections"][0]["text"] == "10k"
     assert result["components"][0]["name"] == "Resistor"
+    assert result["wiring_trace"] == {"events": [], "summary": {}}
 
 
 def test_detection_metrics_counts_class_aware_matches():

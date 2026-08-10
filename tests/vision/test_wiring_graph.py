@@ -1,5 +1,6 @@
 from src.vision.wiring_graph import (
     WiringTrace,
+    accept_p2j_candidate,
     classify_connection_detection,
     network_color,
     terminal_component,
@@ -89,3 +90,47 @@ def test_terminal_never_accepts_an_ocr_value():
     assert _component_accepts_value({"name": "Terminal"}) is False
     assert _component_accepts_value({"name": "GND"}) is False
     assert _component_accepts_value({"name": "Resistor"}) is True
+
+
+def test_strict_p2j_rejects_distance_only_candidate():
+    decision = accept_p2j_candidate(
+        distance=20,
+        path_found=False,
+        crosses_component=False,
+        strict=True,
+    )
+
+    assert decision == (False, "no_skeleton_path")
+
+
+def test_legacy_p2j_keeps_distance_candidate_for_ablation():
+    decision = accept_p2j_candidate(
+        distance=20,
+        path_found=False,
+        crosses_component=False,
+        strict=False,
+    )
+
+    assert decision == (True, "legacy_distance_fallback")
+
+
+def test_p2j_rejects_component_crossing_even_with_skeleton():
+    decision = accept_p2j_candidate(
+        distance=20,
+        path_found=True,
+        crosses_component=True,
+        strict=True,
+    )
+
+    assert decision == (False, "crosses_component")
+
+
+def test_strict_p2j_accepts_continuous_skeleton_path():
+    decision = accept_p2j_candidate(
+        distance=20,
+        path_found=True,
+        crosses_component=False,
+        strict=True,
+    )
+
+    assert decision == (True, "continuous_skeleton_path")

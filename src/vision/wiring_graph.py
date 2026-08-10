@@ -118,3 +118,20 @@ def classify_connection_detection(
             "component": terminal_component(values, confidence, index),
         }
     raise ValueError(f"unsupported connection detection: {name}")
+
+
+def accept_p2j_candidate(
+    *,
+    distance: float,
+    path_found: bool,
+    crosses_component: bool,
+    strict: bool,
+) -> tuple[bool, str]:
+    """Apply the evidence policy for one port-to-junction candidate."""
+    if crosses_component:
+        return False, "crosses_component"
+    if path_found:
+        return True, "continuous_skeleton_path"
+    if strict:
+        return False, "no_skeleton_path"
+    return True, "legacy_distance_fallback"

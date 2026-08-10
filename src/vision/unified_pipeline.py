@@ -16,7 +16,11 @@ from ultralytics import YOLO
 from src.llm import ask
 import torch
 from src.vision.ocr_v2.runtime import load_ocr_runtime
-from src.vision.wiring_graph import classify_connection_detection
+from src.vision.wiring_graph import (
+    WiringTrace,
+    accept_p2j_candidate,
+    classify_connection_detection,
+)
 import pytesseract
 pytesseract.pytesseract.tesseract_cmd = r"E:\Tesseract-OCR\tesseract.exe"
 
@@ -46,6 +50,8 @@ DEFAULT_CONFIG = {
     "use_ccl": False,
     "use_component_mask": True,
     "use_terminal_components": True,
+    "use_wiring_trace": True,
+    "use_strict_p2j": False,
     "skip_llm": False,
     "save_artifacts": True,
     "ocr_model_path": "runs/ocr_crnn_hand_v2/best.pt",
@@ -69,6 +75,7 @@ def _make_pipeline_result(
     evaluation,
     raw_junction_detections,
     raw_text_detections,
+    wiring_trace=None,
 ):
     """Build the stable visual-pipeline result contract used by evaluators."""
     return dict(
@@ -81,6 +88,7 @@ def _make_pipeline_result(
         evaluation=evaluation,
         raw_junction_detections=raw_junction_detections,
         raw_text_detections=raw_text_detections,
+        wiring_trace=wiring_trace or {"events": [], "summary": {}},
     )
 
 # CGHD → HCD name mapping
@@ -1357,6 +1365,8 @@ def process_image(img_path, config=None):
     else:
         cfg = dict(DEFAULT_CONFIG); cfg.update(config); config = cfg
 
+    wiring_trace = WiringTrace(enabled=config["use_wiring_trace"])
+
     img_name = os.path.basename(img_path)
     print(f"\n{'='*60}")
     print(f"  {img_name}")
@@ -1878,26 +1888,48 @@ def process_image(img_path, config=None):
         for ci, c in enumerate(components):
             for pi, (px, py) in enumerate(c["ports"]):
                 best_j, best_d = None, pjr
+                best_reason = ""
+                considered = []
                 for jx, jy in junctions:
                     d = math.hypot(px - jx, py - jy)
                     if d >= pjr:
                         continue
-                    # 改进2: skeleton-verified priority lock
-                    skel_locked = False
+                    crosses_component = crosses((px, py), (jx, jy), components, ci)
+                    path_found = False
                     if config["use_skeleton"] and skeleton is not None:
-                        if _verify_skeleton_path(skeleton, px, py, jx, jy,
-                                                 margin=3, min_ratio=0.50):
-                            if not crosses((px, py), (jx, jy), components, ci):
-                                best_j = (jx, jy)
-                                skel_locked = True
-                                break  # skeleton verified → lock immediately
-                    if skel_locked:
-                        break
-                    # Standard distance-based matching (fallback when no skeleton lock)
+                        path_found = _verify_skeleton_path(
+                            skeleton, px, py, jx, jy, margin=3, min_ratio=0.50
+                        )
+                    allowed, reason = accept_p2j_candidate(
+                        distance=d,
+                        path_found=path_found,
+                        crosses_component=crosses_component,
+                        strict=config["use_strict_p2j"],
+                    )
+                    considered.append(((jx, jy), d, allowed, reason, path_found))
+                    if not allowed:
+                        continue
+                    if path_found:
+                        best_j = (jx, jy)
+                        best_d = d
+                        best_reason = reason
+                        break  # preserve skeleton-priority lock
                     if d < best_d:
-                        if not crosses((px, py), (jx, jy), components, ci):
-                            best_d = d
-                            best_j = (jx, jy)
+                        best_d = d
+                        best_j = (jx, jy)
+                        best_reason = reason
+                for target, distance, allowed, reason, path_found in considered:
+                    selected = allowed and target == best_j
+                    wiring_trace.record(
+                        "p2j_initial",
+                        "p2j",
+                        selected,
+                        best_reason if selected else reason if not allowed else "not_selected",
+                        source={"component_index": ci, "port_index": pi},
+                        target={"junction": list(target)},
+                        distance=distance,
+                        path_found=path_found,
+                    )
                 if best_j:
                     p2j_connections.append((ci, pi, best_j[0], best_j[1]))
 
@@ -1995,16 +2027,49 @@ def process_image(img_path, config=None):
                 if (ci, pi) in connected_ports:
                     continue
                 best_j, best_d = None, pjf
+                best_reason = ""
+                considered = []
                 for jx, jy in junctions:
                     d = math.hypot(px - jx, py - jy)
-                    if d < best_d and not crosses((px, py), (jx, jy), components, ci):
-                        # Don't connect both ports of same component to same junction
-                        if len(c["ports"]) == 2:
-                            other_pi = 1 - pi
-                            if other_pi in comp_junc_used.get((ci, jx, jy), set()):
-                                continue
+                    if d >= best_d:
+                        continue
+                    would_short = False
+                    if len(c["ports"]) == 2:
+                        other_pi = 1 - pi
+                        would_short = other_pi in comp_junc_used.get((ci, jx, jy), set())
+                    if would_short:
+                        considered.append(((jx, jy), d, False, "would_short_component", False))
+                        continue
+                    crosses_component = crosses((px, py), (jx, jy), components, ci)
+                    path_found = bool(
+                        skeleton is not None
+                        and _verify_skeleton_path(
+                            skeleton, px, py, jx, jy, margin=3, min_ratio=0.50
+                        )
+                    )
+                    allowed, reason = accept_p2j_candidate(
+                        distance=d,
+                        path_found=path_found,
+                        crosses_component=crosses_component,
+                        strict=config["use_strict_p2j"],
+                    )
+                    considered.append(((jx, jy), d, allowed, reason, path_found))
+                    if allowed:
                         best_d = d
                         best_j = (jx, jy)
+                        best_reason = reason
+                for target, distance, allowed, reason, path_found in considered:
+                    selected = allowed and target == best_j
+                    wiring_trace.record(
+                        "p2j_fallback",
+                        "p2j",
+                        selected,
+                        best_reason if selected else reason if not allowed else "not_selected",
+                        source={"component_index": ci, "port_index": pi},
+                        target={"junction": list(target)},
+                        distance=distance,
+                        path_found=path_found,
+                    )
                 if best_j:
                     p2j_connections.append((ci, pi, best_j[0], best_j[1]))
                     connected_ports.add((ci, pi))
@@ -2637,6 +2702,7 @@ def process_image(img_path, config=None):
         evaluation=response,
         raw_junction_detections=raw_junction_detections,
         raw_text_detections=raw_text_detections,
+        wiring_trace=wiring_trace.to_dict(),
     )
 
 # ---------------------------------------------------------------------------
