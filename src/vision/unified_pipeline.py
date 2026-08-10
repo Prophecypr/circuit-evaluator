@@ -20,6 +20,7 @@ from src.vision.wiring_graph import (
     WiringTrace,
     accept_p2j_candidate,
     classify_connection_detection,
+    strict_jj_decision,
     trace_port_to_anchor,
 )
 import pytesseract
@@ -54,6 +55,8 @@ DEFAULT_CONFIG = {
     "use_wiring_trace": True,
     "use_strict_p2j": False,
     "use_outward_skeleton_trace": False,
+    "use_strict_jj": False,
+    "use_crossing_semantics": False,
     "skip_llm": False,
     "save_artifacts": True,
     "ocr_model_path": "runs/ocr_crnn_hand_v2/best.pt",
@@ -2166,6 +2169,30 @@ def process_image(img_path, config=None):
         # Track connections per junction for degree constraint
         junc_conn_count = defaultdict(int)
 
+        def strict_jj_candidate(j1, j2):
+            if not config["use_strict_jj"]:
+                return True, "legacy_jj_candidate"
+            allowed, reason = strict_jj_decision(
+                skeleton=skeleton,
+                start=j1,
+                end=j2,
+                detected_junctions=junctions,
+                crossing_semantics=config["use_crossing_semantics"],
+                search_radius=max(3, int(5 * im_scale)),
+                junction_radius=max(5, int(8 * im_scale)),
+                max_steps=max(100, int(1200 * im_scale)),
+            )
+            if not allowed:
+                wiring_trace.record(
+                    "jj_strict",
+                    "jj",
+                    False,
+                    reason,
+                    source={"junction": list(j1)},
+                    target={"junction": list(j2)},
+                )
+            return allowed, reason
+
         # Collect all aligned pairs with skeleton verification
         jj_raw = []  # (dist, jx1, jy1, jx2, jy2)
         for i in range(len(junctions)):
@@ -2191,7 +2218,9 @@ def process_image(img_path, config=None):
                     continue
                 dist = math.hypot(jx1 - jx2, jy1 - jy2)
                 if dist < JJ_PROXIMITY:
-                    jj_raw.append((dist, jx1, jy1, jx2, jy2))
+                    allowed, _ = strict_jj_candidate((jx1, jy1), (jx2, jy2))
+                    if allowed:
+                        jj_raw.append((dist, jx1, jy1, jx2, jy2))
                     continue
                 aligned_h = abs(jy1 - jy2) < jj_align and abs(jx1 - jx2) > 10
                 aligned_v = abs(jx1 - jx2) < jj_align and abs(jy1 - jy2) > 10
@@ -2201,7 +2230,13 @@ def process_image(img_path, config=None):
                 if skeleton is not None:
                     skel_ok = _verify_skeleton_path(skeleton, jx1, jy1, jx2, jy2, margin=5, min_ratio=0.15)
                 on_wire = _on_same_wire(jx1, jy1, jx2, jy2, wire_bboxes)
-                if skel_ok or on_wire or not config["use_skeleton"]:
+                allowed, _ = strict_jj_candidate((jx1, jy1), (jx2, jy2))
+                if allowed and (
+                    config["use_strict_jj"]
+                    or skel_ok
+                    or on_wire
+                    or not config["use_skeleton"]
+                ):
                     jj_raw.append((dist, jx1, jy1, jx2, jy2))
 
         jj_connections = []
@@ -2232,6 +2267,14 @@ def process_image(img_path, config=None):
                             if junc_conn_count[(jx, jy)] >= max_deg + 2 or junc_conn_count[(nx, ny)] >= max_deg_n + 2:
                                 continue
                         jj_connections.append((jx, jy, nx, ny))
+                        wiring_trace.record(
+                            "jj_aligned",
+                            "jj",
+                            True,
+                            "nearest_directional_neighbor",
+                            source={"junction": [jx, jy]},
+                            target={"junction": [nx, ny]},
+                        )
                         junc_conn_count[(jx, jy)] += 1
                         junc_conn_count[(nx, ny)] += 1
         else:
@@ -2243,6 +2286,14 @@ def process_image(img_path, config=None):
                     if junc_conn_count[(jx1, jy1)] >= max_deg + 2 or junc_conn_count[(jx2, jy2)] >= max_deg_n + 2:
                         continue
                 jj_connections.append((jx1, jy1, jx2, jy2))
+                wiring_trace.record(
+                    "jj_aligned",
+                    "jj",
+                    True,
+                    "legacy_all_pairs",
+                    source={"junction": [jx1, jy1]},
+                    target={"junction": [jx2, jy2]},
+                )
                 junc_conn_count[(jx1, jy1)] += 1
                 junc_conn_count[(jx2, jy2)] += 1
 
@@ -2282,11 +2333,28 @@ def process_image(img_path, config=None):
                     non_gnd_2 = {ci for ci in comps_2 if components[ci]["name"] != "GND"}
                     if not non_gnd_1 and not non_gnd_2:
                         continue
-                    if _verify_skeleton_any(skeleton, jx1, jy1, jx2, jy2, margin=6, min_ratio=0.50):
+                    strict_allowed, strict_reason = strict_jj_candidate(
+                        (jx1, jy1), (jx2, jy2)
+                    )
+                    if strict_allowed and (
+                        config["use_strict_jj"]
+                        or _verify_skeleton_any(
+                            skeleton, jx1, jy1, jx2, jy2,
+                            margin=6, min_ratio=0.50,
+                        )
+                    ):
                         max_deg_1 = _junc_branch_count.get((jx1, jy1), 8)
                         max_deg_2 = _junc_branch_count.get((jx2, jy2), 8)
                         if junc_conn_count[(jx1, jy1)] < max_deg_1 + 2 and                        junc_conn_count[(jx2, jy2)] < max_deg_2 + 2:
                             jj_connections.append((jx1, jy1, jx2, jy2))
+                            wiring_trace.record(
+                                "jj_skeleton",
+                                "jj",
+                                True,
+                                strict_reason if config["use_strict_jj"] else "skeleton_any",
+                                source={"junction": [jx1, jy1]},
+                                target={"junction": [jx2, jy2]},
+                            )
                             junc_conn_count[(jx1, jy1)] += 1
                             junc_conn_count[(jx2, jy2)] += 1
                             skel_jj_added += 1

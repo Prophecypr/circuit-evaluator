@@ -212,3 +212,113 @@ def trace_port_to_anchor(
                 visited.add((nx, ny))
                 queue.append((nx, ny, depth + 1))
     return None
+
+
+def _nearest_skeleton_pixel(skeleton, point: tuple[int, int], radius: int):
+    height, width = skeleton.shape[:2]
+    px, py = map(int, point)
+    candidates = []
+    for y in range(max(0, py - radius), min(height, py + radius + 1)):
+        for x in range(max(0, px - radius), min(width, px + radius + 1)):
+            if skeleton[y, x] > 0:
+                candidates.append((math.hypot(x - px, y - py), x, y))
+    if not candidates:
+        return None
+    _, x, y = min(candidates)
+    return x, y
+
+
+def _skeleton_path(skeleton, start, end, max_steps: int):
+    queue = deque([start])
+    parent = {start: None}
+    depth = {start: 0}
+    height, width = skeleton.shape[:2]
+    while queue:
+        current = queue.popleft()
+        if current == end:
+            path = []
+            while current is not None:
+                path.append(current)
+                current = parent[current]
+            return list(reversed(path))
+        if depth[current] >= max_steps:
+            continue
+        x, y = current
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                if dx == 0 and dy == 0:
+                    continue
+                nxt = (x + dx, y + dy)
+                nx, ny = nxt
+                if not (0 <= nx < width and 0 <= ny < height):
+                    continue
+                if nxt in parent or skeleton[ny, nx] <= 0:
+                    continue
+                parent[nxt] = current
+                depth[nxt] = depth[current] + 1
+                queue.append(nxt)
+    return None
+
+
+def _skeleton_branch_pixels(
+    skeleton,
+    path: Iterable[tuple[int, int]],
+    neighborhood: int = 2,
+):
+    height, width = skeleton.shape[:2]
+    branches = []
+    candidates = set()
+    for path_x, path_y in path:
+        for y in range(max(0, path_y - neighborhood), min(height, path_y + neighborhood + 1)):
+            for x in range(max(0, path_x - neighborhood), min(width, path_x + neighborhood + 1)):
+                if skeleton[y, x] > 0:
+                    candidates.add((x, y))
+    for x, y in sorted(candidates):
+        directions = set()
+        for dx, dy, label in ((1, 0, "h"), (-1, 0, "h"), (0, 1, "v"), (0, -1, "v")):
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < width and 0 <= ny < height and skeleton[ny, nx] > 0:
+                directions.add((dx, dy, label))
+        horizontal = sum(1 for _, _, label in directions if label == "h")
+        vertical = sum(1 for _, _, label in directions if label == "v")
+        if horizontal and vertical and len(directions) >= 3:
+            branches.append((x, y))
+    return branches
+
+
+def strict_jj_decision(
+    *,
+    skeleton,
+    start: tuple[int, int],
+    end: tuple[int, int],
+    detected_junctions: Iterable[tuple[int, int]],
+    crossing_semantics: bool,
+    search_radius: int = 4,
+    junction_radius: int = 6,
+    max_steps: int = 2000,
+) -> tuple[bool, str]:
+    """Accept a JJ edge only when a continuous, unambiguous skeleton path exists."""
+    if skeleton is None:
+        return False, "no_skeleton_path"
+    skel_start = _nearest_skeleton_pixel(skeleton, start, search_radius)
+    skel_end = _nearest_skeleton_pixel(skeleton, end, search_radius)
+    if skel_start is None or skel_end is None:
+        return False, "no_skeleton_path"
+    path = _skeleton_path(skeleton, skel_start, skel_end, max_steps)
+    if not path:
+        return False, "no_skeleton_path"
+
+    if crossing_semantics:
+        dx = abs(skel_end[0] - skel_start[0])
+        dy = abs(skel_end[1] - skel_start[1])
+        path_turns = dx > search_radius and dy > search_radius
+        if path_turns:
+            junctions = [(int(x), int(y)) for x, y in detected_junctions]
+            for bx, by in _skeleton_branch_pixels(skeleton, path):
+                marked = any(
+                    math.hypot(bx - jx, by - jy) <= junction_radius
+                    for jx, jy in junctions
+                )
+                if not marked:
+                    return False, "ambiguous_crossing"
+    return True, "continuous_skeleton_path"

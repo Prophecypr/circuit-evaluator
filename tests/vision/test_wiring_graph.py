@@ -5,6 +5,7 @@ from src.vision.wiring_graph import (
     accept_p2j_candidate,
     classify_connection_detection,
     network_color,
+    strict_jj_decision,
     terminal_component,
     trace_port_to_anchor,
 )
@@ -85,6 +86,13 @@ def test_pipeline_defaults_enable_terminal_components_with_one_port():
     assert unified_pipeline.PORT_LABELS["Terminal"] == ["T"]
     assert unified_pipeline.PORT_POSITIONS["Terminal"] == [(0.5, 0.5)]
     assert unified_pipeline.DESIG["Terminal"] == "T"
+
+
+def test_pipeline_exposes_strict_jj_feature_flags():
+    from src.vision import unified_pipeline
+
+    assert unified_pipeline.DEFAULT_CONFIG["use_strict_jj"] is False
+    assert unified_pipeline.DEFAULT_CONFIG["use_crossing_semantics"] is False
 
 
 def test_terminal_never_accepts_an_ocr_value():
@@ -189,3 +197,66 @@ def test_trace_port_to_anchor_returns_none_when_port_has_no_skeleton():
     )
 
     assert result is None
+
+
+def test_strict_jj_accepts_continuous_aligned_wire():
+    skeleton = np.zeros((31, 41), dtype=np.uint8)
+    skeleton[15, 5:36] = 255
+
+    decision = strict_jj_decision(
+        skeleton=skeleton,
+        start=(5, 15),
+        end=(35, 15),
+        detected_junctions=[],
+        crossing_semantics=True,
+    )
+
+    assert decision == (True, "continuous_skeleton_path")
+
+
+def test_strict_jj_rejects_blank_gap():
+    skeleton = np.zeros((31, 41), dtype=np.uint8)
+    skeleton[15, 5:18] = 255
+    skeleton[15, 23:36] = 255
+
+    decision = strict_jj_decision(
+        skeleton=skeleton,
+        start=(5, 15),
+        end=(35, 15),
+        detected_junctions=[],
+        crossing_semantics=True,
+    )
+
+    assert decision == (False, "no_skeleton_path")
+
+
+def test_strict_jj_rejects_turn_through_unmarked_crossing():
+    skeleton = np.zeros((41, 41), dtype=np.uint8)
+    skeleton[20, 5:36] = 255
+    skeleton[5:36, 20] = 255
+
+    decision = strict_jj_decision(
+        skeleton=skeleton,
+        start=(5, 20),
+        end=(20, 5),
+        detected_junctions=[],
+        crossing_semantics=True,
+    )
+
+    assert decision == (False, "ambiguous_crossing")
+
+
+def test_strict_jj_accepts_turn_through_detected_crossing():
+    skeleton = np.zeros((41, 41), dtype=np.uint8)
+    skeleton[20, 5:36] = 255
+    skeleton[5:36, 20] = 255
+
+    decision = strict_jj_decision(
+        skeleton=skeleton,
+        start=(5, 20),
+        end=(20, 5),
+        detected_junctions=[(20, 20)],
+        crossing_semantics=True,
+    )
+
+    assert decision == (True, "continuous_skeleton_path")
