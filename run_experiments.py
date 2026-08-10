@@ -7,6 +7,7 @@ import argparse
 import csv
 import hashlib
 import json, math, os, sys
+import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -554,6 +555,130 @@ def run_wiring_reliability_experiment(
         "final_42_image_test_used": False,
     })
     print(f"Saved {len(rows)} rows; failures={len(failures)}")
+    return output
+
+
+def merge_wiring_reliability_shards(shard_dirs, output_dir, expected_count):
+    """Merge disjoint shard outputs after exact provenance and coverage checks."""
+    shard_dirs = [Path(path) for path in shard_dirs]
+    if not shard_dirs:
+        raise RuntimeError("no wiring reliability shards supplied")
+    expected_configs = build_wiring_reliability_configs()
+    reference = None
+    rows = []
+    failures = []
+    seen_pairs = set()
+    image_configs = defaultdict(set)
+
+    for shard in shard_dirs:
+        metadata = json.loads((shard / "run_metadata.json").read_text(encoding="utf-8"))
+        if metadata.get("suite") != "wiring-reliability":
+            raise RuntimeError(f"invalid wiring reliability shard: {shard}")
+        if metadata.get("final_42_image_test_used") is not False:
+            raise RuntimeError(f"shard used or failed to declare sealed final-42 status: {shard}")
+        provenance = {
+            "git_revision": metadata.get("git_revision"),
+            "configs": metadata.get("configs"),
+            "ocr_model_sha256": metadata.get("ocr_model_sha256"),
+            "detector_model_sha256": metadata.get("detector_model_sha256"),
+        }
+        if reference is None:
+            reference = provenance
+        elif provenance != reference:
+            raise RuntimeError(f"shard provenance mismatch: {shard}")
+        if metadata.get("configs") != expected_configs:
+            raise RuntimeError(f"shard configs differ from current suite: {shard}")
+
+        with (shard / "experiment_results.csv").open(
+            encoding="utf-8-sig", newline="",
+        ) as handle:
+            shard_rows = list(csv.DictReader(handle))
+        for row in shard_rows:
+            key = (row["image"], row["config"])
+            if key in seen_pairs:
+                raise RuntimeError(
+                    f"duplicate image/config across shards: {row['image']} {row['config']}"
+                )
+            seen_pairs.add(key)
+            image_configs[row["image"]].add(row["config"])
+            rows.append(row)
+        failure_path = shard / "failures.json"
+        if failure_path.is_file():
+            failures.extend(json.loads(failure_path.read_text(encoding="utf-8")))
+
+    expected_config_names = set(expected_configs)
+    if len(image_configs) != expected_count:
+        raise RuntimeError(
+            f"expected {expected_count} unique images across shards, found {len(image_configs)}"
+        )
+    incomplete = {
+        image: sorted(expected_config_names - config_names)
+        for image, config_names in image_configs.items()
+        if config_names != expected_config_names
+    }
+    if incomplete:
+        raise RuntimeError(f"incomplete shard config coverage: {incomplete}")
+
+    output = resolve_output_dir(output_dir)
+    for shard in shard_dirs:
+        for source in (shard / "predictions").glob("*/*.json"):
+            destination = output / "predictions" / source.parent.name / source.name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+
+    rows.sort(key=lambda row: (row["image"], list(expected_configs).index(row["config"])))
+    columns = list(rows[0])
+    with (output / "experiment_results.csv").open(
+        "w", encoding="utf-8-sig", newline="",
+    ) as handle:
+        writer = csv.DictWriter(handle, fieldnames=columns)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    normalized_rows = []
+    for row in rows:
+        normalized_rows.append({
+            **row,
+            "edge_tp": int(row["edge_tp"]),
+            "edge_fp": int(row["edge_fp"]),
+            "edge_fn": int(row["edge_fn"]),
+            "group_accuracy": float(row["group_accuracy"]),
+            "comp_neighbor_accuracy": float(row["comp_neighbor_accuracy"]),
+            "stage_summary_raw": json.loads(row.get("stage_summary") or "{}"),
+        })
+    summary = {}
+    for config_name in expected_configs:
+        config_rows = [row for row in normalized_rows if row["config"] == config_name]
+        tp = sum(row["edge_tp"] for row in config_rows)
+        fp = sum(row["edge_fp"] for row in config_rows)
+        fn = sum(row["edge_fn"] for row in config_rows)
+        precision = tp / (tp + fp) if tp + fp else 0.0
+        recall = tp / (tp + fn) if tp + fn else 0.0
+        f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+        summary[config_name] = {
+            "edge": {
+                "tp": tp, "fp": fp, "fn": fn,
+                "precision": precision, "recall": recall, "f1": f1,
+            },
+            "macro_group_accuracy": float(np.mean([row["group_accuracy"] for row in config_rows])),
+            "macro_component_neighbor_accuracy": float(np.mean([row["comp_neighbor_accuracy"] for row in config_rows])),
+            "stage_summary": _aggregate_stage_summaries(config_rows),
+            "failed_images": sum(bool(row.get("error")) for row in config_rows),
+        }
+    _write_json(output / "wiring_reliability_summary.json", summary)
+    _write_json(output / "failures.json", failures)
+    _write_json(output / "run_metadata.json", {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "suite": "wiring-reliability-merged",
+        **reference,
+        "image_count": len(image_configs),
+        "expected_case_count": expected_count,
+        "config_count": len(expected_configs),
+        "failure_count": len(failures),
+        "final_42_image_test_used": False,
+        "shard_count": len(shard_dirs),
+        "source_shards": [str(path.resolve()) for path in shard_dirs],
+    })
     return output
 
 

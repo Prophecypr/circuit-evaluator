@@ -299,3 +299,61 @@ def test_wiring_reliability_runner_writes_edge_and_trace_outputs(tmp_path, monke
     metadata = json.loads((output / "run_metadata.json").read_text(encoding="utf-8"))
     assert metadata["final_42_image_test_used"] is False
     assert metadata["expected_case_count"] == 1
+
+
+def test_merge_wiring_reliability_shards_requires_exact_unique_coverage(tmp_path):
+    configs = build_wiring_reliability_configs()
+
+    def seed_shard(name, stem):
+        shard = tmp_path / name
+        shard.mkdir()
+        (shard / "run_metadata.json").write_text(json.dumps({
+            "suite": "wiring-reliability", "git_revision": "abc",
+            "configs": configs, "image_count": 1,
+            "ocr_model_sha256": "ocr", "detector_model_sha256": "det",
+            "final_42_image_test_used": False,
+        }), encoding="utf-8")
+        columns = [
+            "image", "config", "n_components", "n_gt_groups", "n_pred_groups",
+            "edge_tp", "edge_fp", "edge_fn", "edge_precision", "edge_recall", "edge_f1",
+            "port_correct_rate", "fp_rate", "fn_rate", "group_accuracy",
+            "comp_neighbor_accuracy", "stage_summary", "error",
+        ]
+        with (shard / "experiment_results.csv").open("w", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=columns)
+            writer.writeheader()
+            for config_name in configs:
+                writer.writerow({
+                    "image": stem, "config": config_name, "n_components": 2,
+                    "n_gt_groups": 1, "n_pred_groups": 1,
+                    "edge_tp": 1, "edge_fp": 0, "edge_fn": 0,
+                    "edge_precision": 1, "edge_recall": 1, "edge_f1": 1,
+                    "port_correct_rate": 1, "fp_rate": 0, "fn_rate": 0,
+                    "group_accuracy": 1, "comp_neighbor_accuracy": 1,
+                    "stage_summary": "{}", "error": "",
+                })
+                prediction = shard / "predictions" / config_name / f"{stem}.json"
+                prediction.parent.mkdir(parents=True, exist_ok=True)
+                prediction.write_text("{}", encoding="utf-8")
+        (shard / "failures.json").write_text("[]", encoding="utf-8")
+        return shard
+
+    shard_a = seed_shard("shard-a", "a")
+    shard_b = seed_shard("shard-b", "b")
+    output = run_experiments.merge_wiring_reliability_shards(
+        [shard_a, shard_b], tmp_path / "merged", expected_count=2,
+    )
+
+    with (output / "experiment_results.csv").open(encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert len(rows) == 14
+    assert {row["image"] for row in rows} == {"a", "b"}
+    assert (output / "predictions" / "crossing_semantics" / "b.json").is_file()
+    metadata = json.loads((output / "run_metadata.json").read_text(encoding="utf-8"))
+    assert metadata["image_count"] == 2
+    assert metadata["shard_count"] == 2
+
+    with pytest.raises(RuntimeError, match="duplicate"):
+        run_experiments.merge_wiring_reliability_shards(
+            [shard_a, shard_a], tmp_path / "duplicate-merge", expected_count=2,
+        )
