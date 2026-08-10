@@ -47,3 +47,8 @@ ocr_corrections.json
 AGENTS.md
 picture.zip
 *.ipynb
+!notebooks/crnn_v2_kaggle.ipynb
+
+# Local Kaggle deliverables and backups (large generated data; do not upload)
+outputs/ocr_crnn_hand_v2_kaggle/
+outputs/ocr_crnn_hand_v2_kaggle_cghd_only_backup_20260810/

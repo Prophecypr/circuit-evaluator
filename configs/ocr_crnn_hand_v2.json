@@ -1,0 +1,50 @@
+{
+  "model": {
+    "version": "crnn-v2-handwritten-1",
+    "architecture": "cnn-bilstm2-ctc",
+    "chars": "0123456789.kmMΩμunpFV AHz-+/",
+    "img_h": 32,
+    "img_w": 160,
+    "normalization_version": "circuit-value-v1"
+  },
+  "data": {
+    "seed": 42,
+    "validation_drafters": [
+      "drafter_3",
+      "drafter_8",
+      "drafter_13",
+      "drafter_18",
+      "drafter_23",
+      "drafter_28"
+    ],
+    "train_manifest": "train_manifest.csv",
+    "val_manifest": "val_manifest.csv"
+  },
+  "training": {
+    "batch_size": 64,
+    "epochs": 40,
+    "learning_rate": 0.0005,
+    "weight_decay": 0.0001,
+    "gradient_clip": 5.0,
+    "early_stopping_patience": 7,
+    "num_workers": 2
+  },
+  "augmentation": {
+    "probability": 0.85,
+    "max_rotation_degrees": 4.0,
+    "max_shear_degrees": 3.0,
+    "max_perspective_fraction": 0.035,
+    "crop_jitter_fraction": 0.08,
+    "blur_probability": 0.25,
+    "jpeg_probability": 0.25,
+    "noise_probability": 0.3,
+    "lighting_probability": 0.35,
+    "shadow_probability": 0.2,
+    "morphology_probability": 0.2
+  },
+  "promotion": {
+    "normalized_exact_min": 0.8,
+    "normalized_cer_max": 0.1,
+    "must_beat_active_model": true
+  }
+}
