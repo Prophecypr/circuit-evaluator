@@ -1,0 +1,35 @@
+{
+  "status": "completed_benchmark_not_final_42_test",
+  "benchmark_image_count": 50,
+  "failed_image_count": 0,
+  "ocr_seed": 3407,
+  "ocr_checkpoint_sha256": "011adc4d30144d50a9ca4cac0ef9bc7795aa9c4291142bf26bbb28fbc5fe9d21",
+  "llm_used": false,
+  "final_42_image_test_used": false,
+  "result_directory": "results/joint_benchmark_seed3407_strict_v2_20260810",
+  "metric_correction": "strict review: unmatched-component ports counted as FP, labels scored by spatial assignment, terminals included in processed connection-point GT",
+  "result_hashes": {
+    "summary.json": "6c9fa851582a8e0a106efc5aaba1462347021525a187b6cbe2c170d4b9a57133",
+    "component_metrics.json": "ae726fcfad5400565c50308c1acccf4e0048d0f050f6a62e1b8bc291d4a44434",
+    "junction_metrics.json": "21232b1eda3f3b36e3a28afbe3455cd2503aa8e0dfec92d9e635ef5a330fc8e8",
+    "port_metrics.json": "f0fc738958372453aa50470525d94afe2e6b2d4971d6e00ef21882383e2f5369",
+    "value_metrics.json": "892d83fc655ee5fa48ba05051275392ad7baa7aed9a50da75d13d20979aef357",
+    "wiring_metrics.json": "9cab3d628820a314939c4792615ecb112f7710c9e8a7909a21bd2fdf188fdfbc",
+    "per_image_results.csv": "386fbc90d67214bda5ab9a8e9bf736783b040c49eb5fed98413490dc017a0486",
+    "ocr_errors.csv": "316f6c9eb2baf947621297c602db87998933924a975a4726a709513d4be0cfd1",
+    "run_metadata.json": "3bef4b16c16f3f8321af07d75dce2caba0d9fdc420646805ccd7576b0c35bef8"
+  },
+  "metrics": {
+    "component_f1": 0.914175506268081,
+    "component_map50": 0.8331304386683471,
+    "junction_f1": 0.9288446824789596,
+    "processed_connection_point_f1": 0.9580924855491328,
+    "port_f1": 0.839047619047619,
+    "port_label_accuracy": 0.8297389330306469,
+    "value_normalized_exact": 0.7865168539325843,
+    "value_normalized_cer": 0.0787321063394683,
+    "wiring_edge_f1": 0.24914285714285717,
+    "macro_group_accuracy": 0.13715223665223664,
+    "strict_end_to_end_success_rate": 0.0
+  }
+}

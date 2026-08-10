@@ -49,6 +49,32 @@ DEFAULT_CONFIG = {
     "ocr_model_path": "runs/ocr_crnn_hand_v2/best.pt",
 }
 
+
+def _make_pipeline_result(
+    *,
+    components,
+    text_values,
+    junctions,
+    routes,
+    conn_pairs,
+    raw_groups,
+    evaluation,
+    raw_junction_detections,
+    raw_text_detections,
+):
+    """Build the stable visual-pipeline result contract used by evaluators."""
+    return dict(
+        components=components,
+        text_values=text_values,
+        junctions=junctions,
+        routes=routes,
+        conn_pairs=conn_pairs,
+        raw_groups=raw_groups,
+        evaluation=evaluation,
+        raw_junction_detections=raw_junction_detections,
+        raw_text_detections=raw_text_detections,
+    )
+
 # CGHD → HCD name mapping
 CGH_NAME_MAP = {
     "resistor": "Resistor", "capacitor.unpolarized": "Capacitor",
@@ -1354,7 +1380,9 @@ def process_image(img_path, config=None):
     results = cgh_model(img_path)[0]
     components = []
     junctions_raw = []
+    raw_junction_detections = []
     text_bboxes = []  # CGHD's own text detections for OCR
+    raw_text_detections = []
 
     for box in (results.boxes or []):
         name = cgh_model.names[int(box.cls[0])]
@@ -1363,12 +1391,18 @@ def process_image(img_path, config=None):
         if name in ("junction", "terminal") and conf >= JUNCTION_CONF:
             x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
             junctions_raw.append(((x1 + x2) // 2, (y1 + y2) // 2))
+            raw_junction_detections.append(
+                dict(label=name, bbox=[x1, y1, x2, y2], score=conf)
+            )
             continue
 
         # Collect CGHD text detections for OCR (not added to components)
         if name == "text" and conf >= CGH_CONF_THRESH:
             x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
             text_bboxes.append((x1, y1, x2, y2, conf))
+            raw_text_detections.append(
+                dict(label="text", bbox=[x1, y1, x2, y2], score=conf, text="")
+            )
             continue
 
         if name in CGH_SKIP or conf < CGH_CONF_THRESH:
@@ -1510,7 +1544,7 @@ def process_image(img_path, config=None):
         return False
 
     text_values = []
-    for x1, y1, x2, y2, conf in text_bboxes:
+    for text_index, (x1, y1, x2, y2, conf) in enumerate(text_bboxes):
         if inside_gnd_only(x1, y1, x2, y2):
             continue
         crop = gray[y1:y2, x1:x2]
@@ -1520,6 +1554,7 @@ def process_image(img_path, config=None):
         raw = _clean_ocr(raw)
         corrections = _load_corrections()
         raw = _apply_corrections(raw, corrections)
+        raw_text_detections[text_index]["text"] = raw
         if raw:
             text_values.append(dict(
                 text=raw, cx=(x1 + x2) // 2, cy=(y1 + y2) // 2,
@@ -2533,9 +2568,13 @@ def process_image(img_path, config=None):
     if not save_artifacts:
         raw_groups = [sorted(port_set) for port_set in groups.values()
                       if len(set(ci for ci, pi in port_set)) >= 2]
-        return dict(components=components, text_values=text_values, junctions=junctions,
-                    routes=routes, conn_pairs=conn_pairs, raw_groups=raw_groups,
-                    evaluation=response)
+        return _make_pipeline_result(
+            components=components, text_values=text_values, junctions=junctions,
+            routes=routes, conn_pairs=conn_pairs, raw_groups=raw_groups,
+            evaluation=response,
+            raw_junction_detections=raw_junction_detections,
+            raw_text_detections=raw_text_detections,
+        )
 
     # ---- Step 12: Save TXT ----
     out_txt = Path(img_path).parent / (Path(img_path).stem + "_result.txt")
@@ -2572,9 +2611,13 @@ def process_image(img_path, config=None):
     # Build raw_groups: port-level connectivity for evaluation
     raw_groups = [sorted(port_set) for port_set in groups.values()
                   if len(set(ci for ci, pi in port_set)) >= 2]
-    return dict(components=components, text_values=text_values, junctions=junctions,
-                routes=routes, conn_pairs=conn_pairs, raw_groups=raw_groups,
-                evaluation=response)
+    return _make_pipeline_result(
+        components=components, text_values=text_values, junctions=junctions,
+        routes=routes, conn_pairs=conn_pairs, raw_groups=raw_groups,
+        evaluation=response,
+        raw_junction_detections=raw_junction_detections,
+        raw_text_detections=raw_text_detections,
+    )
 
 # ---------------------------------------------------------------------------
 # Drawing

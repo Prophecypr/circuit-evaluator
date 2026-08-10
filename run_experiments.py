@@ -278,6 +278,12 @@ def evaluate(pipeline_result, gt_groups, det_comps):
     port_correct_rate = tp_edges / len(gt_edges) if gt_edges else 0.0
     fp_rate = fp_edges / len(pred_edges) if pred_edges else 0.0
     fn_rate = fn_edges / len(gt_edges) if gt_edges else 0.0
+    edge_precision = tp_edges / (tp_edges + fp_edges) if tp_edges + fp_edges else 0.0
+    edge_recall = tp_edges / (tp_edges + fn_edges) if tp_edges + fn_edges else 0.0
+    edge_f1 = (
+        2 * edge_precision * edge_recall / (edge_precision + edge_recall)
+        if edge_precision + edge_recall else 0.0
+    )
 
     return {
         "port_correct_rate": port_correct_rate,
@@ -285,6 +291,12 @@ def evaluate(pipeline_result, gt_groups, det_comps):
         "fn_rate": fn_rate,
         "group_accuracy": group_accuracy,
         "comp_neighbor_accuracy": comp_neighbor_accuracy,
+        "edge_tp": tp_edges,
+        "edge_fp": fp_edges,
+        "edge_fn": fn_edges,
+        "edge_precision": edge_precision,
+        "edge_recall": edge_recall,
+        "edge_f1": edge_f1,
         "n_gt_groups": len(gt_sets),
         "n_pred_groups": len(pred_groups),
     }
