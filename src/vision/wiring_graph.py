@@ -79,6 +79,46 @@ def network_color(port_ids: Iterable[str]) -> tuple[int, int, int]:
     return tuple(64 + byte % 160 for byte in digest[:3])
 
 
+def build_network_render_data(raw_groups, components) -> list[dict[str, Any]]:
+    """Turn Union-Find port groups into stable labels, points, and colors."""
+    groups = []
+    for raw_group in raw_groups:
+        members = []
+        for raw_ci, raw_pi in raw_group:
+            ci, pi = int(raw_ci), int(raw_pi)
+            if not (0 <= ci < len(components)):
+                continue
+            component = components[ci]
+            ports = component.get("ports", [])
+            if not (0 <= pi < len(ports)):
+                continue
+            labels = component.get("port_labels", component.get("labels", []))
+            label = str(labels[pi]) if pi < len(labels) else f"P{pi + 1}"
+            designator = str(component.get("designator") or f"C{ci + 1}")
+            point = tuple(map(int, ports[pi]))
+            members.append(
+                {
+                    "component_index": ci,
+                    "port_index": pi,
+                    "port_id": f"{designator}.{label}",
+                    "point": point,
+                }
+            )
+        if members:
+            members.sort(key=lambda member: member["port_id"])
+            groups.append(members)
+
+    groups.sort(key=lambda members: tuple(member["port_id"] for member in members))
+    return [
+        {
+            "network_id": f"N{index}",
+            "color": network_color(member["port_id"] for member in members),
+            "members": members,
+        }
+        for index, members in enumerate(groups, start=1)
+    ]
+
+
 def terminal_component(
     bbox: Iterable[float], confidence: float, index: int
 ) -> dict[str, Any]:

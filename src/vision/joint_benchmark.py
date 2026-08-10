@@ -486,20 +486,57 @@ def _sum_prf(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
 def _render_prediction(image_path: Path, result: dict[str, Any], output_path: Path) -> None:
     import cv2
     import numpy as np
+    from .wiring_graph import build_network_render_data, network_color
 
     image_bytes = np.frombuffer(image_path.read_bytes(), dtype=np.uint8)
     image = cv2.imdecode(image_bytes, cv2.IMREAD_COLOR)
     if image is None:
         raise RuntimeError(f"cannot render unreadable image: {image_path}")
-    for component in result.get("components", []):
+    components = result.get("components", [])
+    networks = build_network_render_data(result.get("raw_groups", []), components)
+    port_colors = {}
+    port_network_ids = {}
+    for network in networks:
+        color = tuple(map(int, network["color"]))
+        for member in network["members"]:
+            key = (member["component_index"], member["port_index"])
+            port_colors[key] = color
+            port_network_ids[key] = network["network_id"]
+
+    junction_colors = {}
+    for raw_ci, raw_pi, raw_jx, raw_jy in result.get("p2j_connections", []):
+        ci, pi, jx, jy = int(raw_ci), int(raw_pi), int(raw_jx), int(raw_jy)
+        if not (0 <= ci < len(components)) or not (0 <= pi < len(components[ci].get("ports", []))):
+            continue
+        px, py = map(int, components[ci]["ports"][pi])
+        color = port_colors.get((ci, pi), network_color([f"{ci}.{pi}"]))
+        cv2.line(image, (px, py), (jx, jy), color, 3, cv2.LINE_AA)
+        junction_colors.setdefault((jx, jy), color)
+    for raw_x1, raw_y1, raw_x2, raw_y2 in result.get("jj_connections", []):
+        x1, y1, x2, y2 = map(int, (raw_x1, raw_y1, raw_x2, raw_y2))
+        color = junction_colors.get((x1, y1), junction_colors.get((x2, y2)))
+        if color is None:
+            color = network_color([f"J{x1},{y1}", f"J{x2},{y2}"])
+        cv2.line(image, (x1, y1), (x2, y2), color, 3, cv2.LINE_AA)
+        junction_colors.setdefault((x1, y1), color)
+        junction_colors.setdefault((x2, y2), color)
+
+    for ci, component in enumerate(components):
         x1, y1, x2, y2 = map(int, component["xyxy"])
         cv2.rectangle(image, (x1, y1), (x2, y2), (0, 180, 0), 2)
         label = str(component.get("name", "component"))
         if component.get("value"):
             label += f"={component['value']}"
         cv2.putText(image, label, (x1, max(12, y1 - 4)), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 130, 0), 1)
-        for px, py in component.get("ports", []):
-            cv2.circle(image, (int(px), int(py)), 5, (0, 0, 255), -1)
+        for pi, (px, py) in enumerate(component.get("ports", [])):
+            key = (ci, pi)
+            color = port_colors.get(key, (0, 0, 255))
+            cv2.circle(image, (int(px), int(py)), 6, color, -1)
+            if key in port_network_ids:
+                cv2.putText(
+                    image, port_network_ids[key], (int(px) + 5, int(py) - 5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.35, color, 1, cv2.LINE_AA,
+                )
     for jx, jy in result.get("junctions", []):
         cv2.circle(image, (int(jx), int(jy)), 5, (0, 255, 255), -1)
     for detection in result.get("raw_junction_detections", []):
@@ -551,6 +588,7 @@ def run_joint_benchmark(
         )
     output.mkdir(parents=True, exist_ok=True)
     (output / "predictions").mkdir(exist_ok=resume)
+    (output / "wiring_traces").mkdir(exist_ok=resume)
     if render:
         (output / "annotated_images").mkdir(exist_ok=resume)
 
@@ -753,6 +791,10 @@ def run_joint_benchmark(
             )
             if not is_cached:
                 _write_json(prediction_path, result)
+            _write_json(
+                output / "wiring_traces" / f"{stem}.json",
+                result.get("wiring_trace", {"events": [], "summary": {}}),
+            )
             rendered_path = output / "annotated_images" / f"{stem}.jpg"
             if render and (not is_cached or not rendered_path.is_file()):
                 try:

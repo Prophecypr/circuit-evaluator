@@ -17,6 +17,7 @@ from src.vision.joint_benchmark import (
     run_joint_benchmark,
 )
 from src.vision import joint_benchmark
+from src.vision.wiring_graph import build_network_render_data
 
 
 def test_pipeline_result_exposes_raw_detector_outputs():
@@ -30,12 +31,32 @@ def test_pipeline_result_exposes_raw_detector_outputs():
         evaluation="skipped",
         raw_junction_detections=[{"label": "junction", "bbox": [8, 18, 12, 22]}],
         raw_text_detections=[{"label": "text", "bbox": [30, 40, 50, 60], "text": "10k"}],
+        p2j_connections=[(0, 0, 10, 20)],
+        jj_connections=[(10, 20, 30, 20)],
+        wiring_trace={"events": [{"stage": "p2j"}], "summary": {"accepted": 1}},
     )
 
     assert result["raw_junction_detections"][0]["label"] == "junction"
     assert result["raw_text_detections"][0]["text"] == "10k"
     assert result["components"][0]["name"] == "Resistor"
-    assert result["wiring_trace"] == {"events": [], "summary": {}}
+    assert result["p2j_connections"] == [(0, 0, 10, 20)]
+    assert result["jj_connections"] == [(10, 20, 30, 20)]
+    assert result["wiring_trace"]["summary"] == {"accepted": 1}
+
+
+def test_network_render_data_assigns_one_deterministic_color_per_group():
+    components = [
+        {"designator": "R1", "name": "Resistor", "ports": [(0, 5), (20, 5)], "port_labels": ["1", "2"]},
+        {"designator": "C1", "name": "Capacitor", "ports": [(30, 5), (50, 5)], "port_labels": ["1", "2"]},
+    ]
+
+    first = build_network_render_data([[(0, 1), (1, 0)]], components)
+    second = build_network_render_data([[(1, 0), (0, 1)]], components)
+
+    assert first == second
+    assert first[0]["network_id"] == "N1"
+    assert [member["port_id"] for member in first[0]["members"]] == ["C1.1", "R1.2"]
+    assert first[0]["color"] == second[0]["color"]
 
 
 def test_detection_metrics_counts_class_aware_matches():
@@ -455,6 +476,34 @@ def test_joint_runner_enforces_expected_case_count(tmp_path):
         )
 
 
+def test_joint_runner_writes_per_image_wiring_trace_sidecar(tmp_path):
+    benchmark, cghd_root = _seed_joint_case(tmp_path)
+    output = tmp_path / "output"
+
+    def fake_process(_image_path, config):
+        return {
+            "components": [], "text_values": [], "junctions": [], "routes": [],
+            "conn_pairs": [], "raw_groups": [],
+            "evaluation": "(LLM skipped for experiment)",
+            "raw_junction_detections": [], "raw_text_detections": [],
+            "wiring_trace": {
+                "events": [{"stage": "p2j", "accepted": False, "reason": "no_skeleton_path"}],
+                "summary": {"rejected": 1},
+            },
+        }
+
+    run_joint_benchmark(
+        benchmark_dir=benchmark, cghd_root=cghd_root, output_dir=output,
+        ocr_model_path="model.pt", process_fn=fake_process, render=False,
+    )
+
+    trace = json.loads(
+        (output / "wiring_traces" / "sample.json").read_text(encoding="utf-8")
+    )
+    assert trace["summary"] == {"rejected": 1}
+    assert trace["events"][0]["reason"] == "no_skeleton_path"
+
+
 def test_render_failure_does_not_duplicate_evaluation_rows(tmp_path, monkeypatch):
     benchmark, cghd_root = _seed_joint_case(tmp_path)
     output = tmp_path / "output"
@@ -503,6 +552,34 @@ def test_renderer_supports_unicode_absolute_paths(tmp_path):
 
     assert output.is_file()
     assert output.stat().st_size > 0
+
+
+def test_renderer_draws_actual_p2j_edge_with_network_color(tmp_path):
+    import cv2
+    import numpy as np
+
+    source = tmp_path / "source.jpg"
+    output = tmp_path / "rendered.jpg"
+    ok, encoded = cv2.imencode(".jpg", np.zeros((60, 80, 3), dtype=np.uint8))
+    assert ok
+    source.write_bytes(encoded.tobytes())
+
+    joint_benchmark._render_prediction(
+        source,
+        {
+            "components": [{
+                "name": "Terminal", "designator": "T1", "xyxy": [5, 15, 15, 25],
+                "ports": [[10, 20]], "port_labels": ["T"],
+            }],
+            "junctions": [[50, 20]], "raw_groups": [[[0, 0]]],
+            "p2j_connections": [[0, 0, 50, 20]], "jj_connections": [],
+            "raw_junction_detections": [], "raw_text_detections": [],
+        },
+        output,
+    )
+
+    rendered = cv2.imdecode(np.frombuffer(output.read_bytes(), dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert int(rendered[20, 30].max()) > 40
 
 
 def test_failed_pipeline_counts_all_ground_truth_wiring_edges_as_false_negatives(tmp_path):
