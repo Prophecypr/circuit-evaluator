@@ -16,6 +16,7 @@ from ultralytics import YOLO
 from src.llm import ask
 import torch
 from src.vision.ocr_v2.runtime import load_ocr_runtime
+from src.vision.wiring_graph import classify_connection_detection
 import pytesseract
 pytesseract.pytesseract.tesseract_cmd = r"E:\Tesseract-OCR\tesseract.exe"
 
@@ -44,10 +45,17 @@ DEFAULT_CONFIG = {
     "use_force_connect": False, "use_los": True,  # force-connect disabled: creates FPs
     "use_ccl": False,
     "use_component_mask": True,
+    "use_terminal_components": True,
     "skip_llm": False,
     "save_artifacts": True,
     "ocr_model_path": "runs/ocr_crnn_hand_v2/best.pt",
 }
+
+VALUELESS_COMPONENT_TYPES = frozenset({"GND", "Terminal"})
+
+
+def _component_accepts_value(component):
+    return component.get("name") not in VALUELESS_COMPONENT_TYPES
 
 
 def _make_pipeline_result(
@@ -180,6 +188,7 @@ PORT_LABELS = {
     "I-DC":           ["-", "+"],
     "I-AC":           ["~", "~"],
     "GND":            ["GND"],
+    "Terminal":       ["T"],
     "BJT":            ["B", "C", "E"],
     "MOSFET-N":       ["G", "S", "D"],
     "MOSFET-P":       ["G", "S", "D"],
@@ -235,6 +244,7 @@ PORT_POSITIONS = {
     "I-DC":           [(0.5,0.0), (0.5,1.0)],
     "I-AC":           [(0.5,0.0), (0.5,1.0)],
     "GND":            [(0.5,0.0)],
+    "Terminal":       [(0.5,0.5)],
     "BJT":            [(0.0,0.5), (0.7,0.0), (0.7,1.0)],
     "MOSFET-N":       [(0,0.5), (0.5,1.0), (0.5,0.0)],
     "MOSFET-P":       [(0,0.5), (0.5,1.0), (0.5,0.0)],
@@ -315,7 +325,7 @@ NMS_IOU_THRESH = 0.35  # IoU above which same-family overlapping detections are 
 DESIG = {"Resistor": "R", "Capacitor": "C", "Polarized-Capacitor": "C", "Inductor": "L",
          "Diode": "D", "Zener Diode": "ZD", "LED": "LED",
          "V-DC": "V", "V-AC": "V", "I-DC": "I", "I-AC": "I",
-         "GND": "GND", "BJT": "Q",
+         "GND": "GND", "Terminal": "T", "BJT": "Q",
          "MOSFET-N": "Q", "MOSFET-P": "Q", "Op-Amp": "U",
          "Thyristor": "SCR", "Triac": "TRIAC", "Diac": "DIAC", "Varistor": "VDR",
          "Lamp": "Lamp",
@@ -1390,10 +1400,20 @@ def process_image(img_path, config=None):
 
         if name in ("junction", "terminal") and conf >= JUNCTION_CONF:
             x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
-            junctions_raw.append(((x1 + x2) // 2, (y1 + y2) // 2))
             raw_junction_detections.append(
                 dict(label=name, bbox=[x1, y1, x2, y2], score=conf)
             )
+            classified = classify_connection_detection(
+                name,
+                [x1, y1, x2, y2],
+                conf,
+                config["use_terminal_components"],
+                len(components),
+            )
+            if classified["junction"] is not None:
+                junctions_raw.append(classified["junction"])
+            if classified["component"] is not None:
+                components.append(classified["component"])
             continue
 
         # Collect CGHD text detections for OCR (not added to components)
@@ -1572,7 +1592,7 @@ def process_image(img_path, config=None):
         variants = _ocr_variants(tv["text"])
         best_for_tv = None  # (ci, value, dist, is_exact)
         for ci, c in enumerate(components):
-            if c["name"] == "GND":
+            if not _component_accepts_value(c):
                 continue
             dist = abs(tv["cx"] - c["cx"]) + abs(tv["cy"] - c["cy"])
             if dist > 250:
@@ -1603,7 +1623,7 @@ def process_image(img_path, config=None):
         assigned_tv.add(ti)
     # Second pass: fill unassigned components from remaining text (with variants)
     for c in components:
-        if c["value"] or c["name"] == "GND":
+        if c["value"] or not _component_accepts_value(c):
             continue
         best_text, best_ti, best_dist = "", -1, 99999
         for ti, tv in enumerate(text_values):
@@ -1636,7 +1656,7 @@ def process_image(img_path, config=None):
         "I-AC": ["A", "mA"],
     }
     for c in components:
-        if c["conf"] < HC_CONF or not c["value"] or c["name"] == "GND":
+        if c["conf"] < HC_CONF or not c["value"] or not _component_accepts_value(c):
             continue
         valid_units = UNIT_MAP.get(c["name"], [])
         if not valid_units:

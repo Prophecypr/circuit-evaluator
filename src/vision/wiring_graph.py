@@ -76,3 +76,45 @@ def network_color(port_ids: Iterable[str]) -> tuple[int, int, int]:
     token = "|".join(sorted(str(port_id) for port_id in port_ids)).encode("utf-8")
     digest = hashlib.sha256(token).digest()
     return tuple(64 + byte % 160 for byte in digest[:3])
+
+
+def terminal_component(
+    bbox: Iterable[float], confidence: float, index: int
+) -> dict[str, Any]:
+    x1, y1, x2, y2 = (int(round(value)) for value in bbox)
+    center = ((x1 + x2) // 2, (y1 + y2) // 2)
+    return {
+        "idx": index,
+        "name": "Terminal",
+        "display": "Terminal",
+        "raw_name": "terminal",
+        "xyxy": (x1, y1, x2, y2),
+        "cx": center[0],
+        "cy": center[1],
+        "conf": float(confidence),
+        "value": "",
+        "ports": [center],
+        "labels": ["T"],
+        "designator": "",
+        "label_swap": False,
+    }
+
+
+def classify_connection_detection(
+    name: str,
+    bbox: Iterable[float],
+    confidence: float,
+    use_terminal_components: bool,
+    index: int,
+) -> dict[str, Any]:
+    values = tuple(int(round(value)) for value in bbox)
+    x1, y1, x2, y2 = values
+    center = ((x1 + x2) // 2, (y1 + y2) // 2)
+    if name == "junction" or (name == "terminal" and not use_terminal_components):
+        return {"junction": center, "component": None}
+    if name == "terminal":
+        return {
+            "junction": None,
+            "component": terminal_component(values, confidence, index),
+        }
+    raise ValueError(f"unsupported connection detection: {name}")

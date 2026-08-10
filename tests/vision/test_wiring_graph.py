@@ -1,4 +1,9 @@
-from src.vision.wiring_graph import WiringTrace, network_color
+from src.vision.wiring_graph import (
+    WiringTrace,
+    classify_connection_detection,
+    network_color,
+    terminal_component,
+)
 
 
 def test_wiring_trace_counts_acceptance_by_stage_and_reason():
@@ -32,3 +37,55 @@ def test_network_color_is_stable_and_network_specific():
     assert first == network_color(["R1.1", "C1.+"])
     assert first != network_color(["C1.-", "R1.2"])
     assert all(64 <= channel <= 223 for channel in first)
+
+
+def test_terminal_component_has_one_center_port_and_stable_semantics():
+    component = terminal_component([10, 20, 30, 40], 0.8, index=4)
+
+    assert component["idx"] == 4
+    assert component["name"] == "Terminal"
+    assert component["ports"] == [(20, 30)]
+    assert component["labels"] == ["T"]
+    assert component["raw_name"] == "terminal"
+
+
+def test_terminal_detection_is_not_added_to_junction_centers_when_enabled():
+    classified = classify_connection_detection(
+        "terminal", [10, 20, 30, 40], 0.8, use_terminal_components=True, index=0
+    )
+
+    assert classified["junction"] is None
+    assert classified["component"]["name"] == "Terminal"
+
+
+def test_terminal_detection_preserves_legacy_junction_behavior_when_disabled():
+    classified = classify_connection_detection(
+        "terminal", [10, 20, 30, 40], 0.8, use_terminal_components=False, index=0
+    )
+
+    assert classified == {"junction": (20, 30), "component": None}
+
+
+def test_junction_detection_never_becomes_a_component():
+    classified = classify_connection_detection(
+        "junction", [10, 20, 30, 40], 0.8, use_terminal_components=True, index=0
+    )
+
+    assert classified == {"junction": (20, 30), "component": None}
+
+
+def test_pipeline_defaults_enable_terminal_components_with_one_port():
+    from src.vision import unified_pipeline
+
+    assert unified_pipeline.DEFAULT_CONFIG["use_terminal_components"] is True
+    assert unified_pipeline.PORT_LABELS["Terminal"] == ["T"]
+    assert unified_pipeline.PORT_POSITIONS["Terminal"] == [(0.5, 0.5)]
+    assert unified_pipeline.DESIG["Terminal"] == "T"
+
+
+def test_terminal_never_accepts_an_ocr_value():
+    from src.vision.unified_pipeline import _component_accepts_value
+
+    assert _component_accepts_value({"name": "Terminal"}) is False
+    assert _component_accepts_value({"name": "GND"}) is False
+    assert _component_accepts_value({"name": "Resistor"}) is True
