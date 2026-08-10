@@ -57,6 +57,7 @@ DEFAULT_CONFIG = {
     "use_outward_skeleton_trace": False,
     "use_strict_jj": False,
     "use_crossing_semantics": False,
+    "skip_ocr": False,
     "skip_llm": False,
     "save_artifacts": True,
     "ocr_model_path": "runs/ocr_crnn_hand_v2/best.pt",
@@ -429,16 +430,17 @@ def _load_models(config=None):
         print(f"YOLO: CGHD 61-class loaded ({len(_CGH_MODEL.names)} classes)")
 
     active_config = DEFAULT_CONFIG if config is None else config
-    ocr_model_path = active_config.get(
-        "ocr_model_path", DEFAULT_CONFIG["ocr_model_path"]
-    )
-    if _OCR_RUNTIME is None or _OCR_MODEL_PATH != ocr_model_path:
-        _OCR_RUNTIME = load_ocr_runtime(ocr_model_path)
-        _OCR_MODEL_PATH = ocr_model_path
-        print(
-            f"OCR: {_OCR_RUNTIME.backend} loaded "
-            f"({len(_OCR_RUNTIME.chars)} chars, {ocr_model_path})"
+    if not active_config.get("skip_ocr", False):
+        ocr_model_path = active_config.get(
+            "ocr_model_path", DEFAULT_CONFIG["ocr_model_path"]
         )
+        if _OCR_RUNTIME is None or _OCR_MODEL_PATH != ocr_model_path:
+            _OCR_RUNTIME = load_ocr_runtime(ocr_model_path)
+            _OCR_MODEL_PATH = ocr_model_path
+            print(
+                f"OCR: {_OCR_RUNTIME.backend} loaded "
+                f"({len(_OCR_RUNTIME.chars)} chars, {ocr_model_path})"
+            )
     return _CGH_MODEL
 
 
@@ -1584,6 +1586,8 @@ def process_image(img_path, config=None):
 
     text_values = []
     for text_index, (x1, y1, x2, y2, conf) in enumerate(text_bboxes):
+        if config["skip_ocr"]:
+            continue
         if inside_gnd_only(x1, y1, x2, y2):
             continue
         crop = gray[y1:y2, x1:x2]
@@ -1600,7 +1604,10 @@ def process_image(img_path, config=None):
                 xyxy=(x1, y1, x2, y2), conf=conf
             ))
 
-    print(f"  OCR texts: {len(text_values)}")
+    if config["skip_ocr"]:
+        print(f"  OCR: skipped for wiring-only experiment ({len(text_bboxes)} text boxes retained)")
+    else:
+        print(f"  OCR texts: {len(text_values)}")
 
     # ---- Step 3: Match values (proximity-first with OCR variant correction) ----
     # For each text value, try all component types. Pick best (comp, variant) by:

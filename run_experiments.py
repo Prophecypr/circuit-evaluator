@@ -53,6 +53,7 @@ def build_wiring_reliability_configs():
     baseline = {
         **DEFAULT_CONFIG,
         "skip_llm": True,
+        "skip_ocr": True,
         "save_artifacts": False,
         "use_wiring_trace": False,
         "use_terminal_components": False,

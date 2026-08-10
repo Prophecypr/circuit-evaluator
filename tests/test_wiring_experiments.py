@@ -149,6 +149,7 @@ def test_wiring_reliability_configs_are_cumulative_and_llm_free():
         "outward_trace", "strict_jj", "crossing_semantics",
     ]
     assert all(config["skip_llm"] is True for config in configs.values())
+    assert all(config["skip_ocr"] is True for config in configs.values())
     assert all(config["save_artifacts"] is False for config in configs.values())
     assert configs["frozen_baseline"]["use_terminal_components"] is False
     assert configs["frozen_baseline"]["use_wiring_trace"] is False
