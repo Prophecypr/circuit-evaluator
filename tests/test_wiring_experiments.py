@@ -1,10 +1,15 @@
 import json
+import csv
 from pathlib import Path
 
 import pytest
 
 import run_experiments
-from run_experiments import build_ablation_configs, resolve_output_dir
+from run_experiments import (
+    build_ablation_configs,
+    build_wiring_reliability_configs,
+    resolve_output_dir,
+)
 from src.vision.unified_pipeline import DEFAULT_CONFIG
 
 
@@ -136,6 +141,33 @@ def test_ablation_configs_are_full_unique_and_llm_free():
     assert len(fingerprints) == len(configs)
 
 
+def test_wiring_reliability_configs_are_cumulative_and_llm_free():
+    configs = build_wiring_reliability_configs()
+
+    assert list(configs) == [
+        "frozen_baseline", "observability", "terminal", "strict_fallback",
+        "outward_trace", "strict_jj", "crossing_semantics",
+    ]
+    assert all(config["skip_llm"] is True for config in configs.values())
+    assert all(config["save_artifacts"] is False for config in configs.values())
+    assert configs["frozen_baseline"]["use_terminal_components"] is False
+    assert configs["frozen_baseline"]["use_wiring_trace"] is False
+    assert configs["observability"]["use_wiring_trace"] is True
+    assert configs["terminal"]["use_terminal_components"] is True
+    assert configs["strict_fallback"]["use_strict_p2j"] is True
+    assert configs["outward_trace"]["use_outward_skeleton_trace"] is True
+    assert configs["strict_jj"]["use_strict_jj"] is True
+    assert configs["crossing_semantics"]["use_crossing_semantics"] is True
+
+    ordered = list(configs.values())
+    keys = [
+        "use_wiring_trace", "use_terminal_components", "use_strict_p2j",
+        "use_outward_skeleton_trace", "use_strict_jj", "use_crossing_semantics",
+    ]
+    for earlier, later in zip(ordered, ordered[1:]):
+        assert all(not earlier[key] or later[key] for key in keys)
+
+
 def test_output_directory_is_explicit_and_created(tmp_path):
     output_dir = resolve_output_dir(tmp_path / "visual-only-run")
 
@@ -217,3 +249,52 @@ def test_main_writes_all_outputs_to_requested_directory_only(tmp_path, monkeypat
         (tmp_path / artifact_name).read_text(encoding="utf-8") == "historical artifact"
         for artifact_name in artifact_names
     )
+
+
+def test_wiring_reliability_runner_writes_edge_and_trace_outputs(tmp_path, monkeypatch):
+    detections_path = tmp_path / "detections.json"
+    detections_path.write_text(json.dumps({"components": [
+        {"xyxy": [0, 0, 10, 10], "ports": [[0, 5]], "labels": ["1"], "designator": "R1"},
+        {"xyxy": [20, 0, 30, 10], "ports": [[20, 5]], "labels": ["1"], "designator": "R2"},
+    ]}), encoding="utf-8")
+    monkeypatch.setattr(
+        run_experiments, "get_image_list",
+        lambda _benchmark_dir: [("sample", "unused.jpg", "unused_gt.txt", str(detections_path))],
+    )
+    monkeypatch.setattr(
+        run_experiments, "parse_gt",
+        lambda _path: [[("R1", "1"), ("R2", "1")]],
+    )
+
+    def fake_process(_image_path, config):
+        return {
+            "components": [
+                {"xyxy": [0, 0, 10, 10], "ports": [[0, 5]]},
+                {"xyxy": [20, 0, 30, 10], "ports": [[20, 5]]},
+            ],
+            "raw_groups": [[[0, 0], [1, 0]]],
+            "evaluation": "(LLM skipped for experiment)",
+            "wiring_trace": {
+                "events": [],
+                "summary": {"p2j": {"candidates": 2, "accepted": 2, "rejected": 0, "reasons": {"test": 2}}},
+            },
+        }
+
+    output = run_experiments.run_wiring_reliability_experiment(
+        output_dir=tmp_path / "wiring-run",
+        benchmark_dir=tmp_path,
+        selected_images=["sample"],
+        expected_count=1,
+        process_fn=fake_process,
+    )
+
+    with (output / "experiment_results.csv").open(encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert len(rows) == 7
+    assert all(float(row["edge_f1"]) == pytest.approx(1.0) for row in rows)
+    assert json.loads(rows[-1]["stage_summary"])["p2j"]["accepted"] == 2
+    summary = json.loads((output / "wiring_reliability_summary.json").read_text(encoding="utf-8"))
+    assert summary["crossing_semantics"]["edge"]["f1"] == pytest.approx(1.0)
+    metadata = json.loads((output / "run_metadata.json").read_text(encoding="utf-8"))
+    assert metadata["final_42_image_test_used"] is False
+    assert metadata["expected_case_count"] == 1

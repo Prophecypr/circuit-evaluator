@@ -4,6 +4,8 @@ Usage: python run_experiments.py [--output-dir results/visual_wiring_run]
 Output: CSV, plots, and metadata in a dedicated run directory.
 """
 import argparse
+import csv
+import hashlib
 import json, math, os, sys
 import subprocess
 from datetime import datetime
@@ -43,6 +45,36 @@ def build_ablation_configs():
         "w/o_Close_Port": {**full, "use_close_port": False},
         "w/o_Component_Mask": {**full, "use_component_mask": False},
         "CCL": {**full, "use_ccl": True},
+    }
+
+
+def build_wiring_reliability_configs():
+    """Return cumulative, visual-only configs for the wiring reliability study."""
+    baseline = {
+        **DEFAULT_CONFIG,
+        "skip_llm": True,
+        "save_artifacts": False,
+        "use_wiring_trace": False,
+        "use_terminal_components": False,
+        "use_strict_p2j": False,
+        "use_outward_skeleton_trace": False,
+        "use_strict_jj": False,
+        "use_crossing_semantics": False,
+    }
+    observability = {**baseline, "use_wiring_trace": True}
+    terminal = {**observability, "use_terminal_components": True}
+    strict_fallback = {**terminal, "use_strict_p2j": True}
+    outward_trace = {**strict_fallback, "use_outward_skeleton_trace": True}
+    strict_jj = {**outward_trace, "use_strict_jj": True}
+    crossing_semantics = {**strict_jj, "use_crossing_semantics": True}
+    return {
+        "frozen_baseline": baseline,
+        "observability": observability,
+        "terminal": terminal,
+        "strict_fallback": strict_fallback,
+        "outward_trace": outward_trace,
+        "strict_jj": strict_jj,
+        "crossing_semantics": crossing_semantics,
     }
 
 
@@ -340,6 +372,190 @@ def get_image_list(benchmark_dir=BENCHMARK):
     return images
 
 
+def _file_sha256(path):
+    path = Path(path)
+    if not path.is_file():
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _json_default(value):
+    if isinstance(value, set):
+        return sorted(value)
+    if isinstance(value, Path):
+        return str(value)
+    if hasattr(value, "item"):
+        return value.item()
+    raise TypeError(f"not JSON serializable: {type(value).__name__}")
+
+
+def _write_json(path, payload):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            payload, ensure_ascii=False, indent=2, sort_keys=True,
+            default=_json_default,
+        ),
+        encoding="utf-8",
+    )
+
+
+def _aggregate_stage_summaries(rows):
+    totals = defaultdict(lambda: {
+        "candidates": 0, "accepted": 0, "rejected": 0, "reasons": defaultdict(int),
+    })
+    for row in rows:
+        for stage, values in row.get("stage_summary_raw", {}).items():
+            target = totals[stage]
+            for key in ("candidates", "accepted", "rejected"):
+                target[key] += int(values.get(key, 0))
+            for reason, count in values.get("reasons", {}).items():
+                target["reasons"][reason] += int(count)
+    return {
+        stage: {
+            "candidates": values["candidates"],
+            "accepted": values["accepted"],
+            "rejected": values["rejected"],
+            "reasons": dict(sorted(values["reasons"].items())),
+        }
+        for stage, values in sorted(totals.items())
+    }
+
+
+def run_wiring_reliability_experiment(
+    *,
+    output_dir,
+    benchmark_dir=BENCHMARK,
+    selected_images=None,
+    expected_count=None,
+    process_fn=None,
+):
+    """Run the cumulative wiring suite without LLM calls or final-42 inputs."""
+    output = resolve_output_dir(output_dir)
+    images = get_image_list(benchmark_dir)
+    if selected_images:
+        requested = {str(stem) for stem in selected_images}
+        found = {stem for stem, *_ in images}
+        missing = sorted(requested - found)
+        if missing:
+            raise FileNotFoundError(f"unknown requested benchmark images: {', '.join(missing)}")
+        images = [item for item in images if item[0] in requested]
+    if expected_count is not None and len(images) != expected_count:
+        raise RuntimeError(
+            f"expected {expected_count} benchmark cases, found {len(images)}"
+        )
+    if not images:
+        raise RuntimeError("wiring reliability experiment has no images")
+
+    configs = build_wiring_reliability_configs()
+    process_fn = process_fn or process_image
+    rows = []
+    failures = []
+    print(f"Output directory: {output}")
+    print(f"Wiring reliability: {len(images)} images x {len(configs)} configs")
+
+    for image_index, (stem, image_path, gt_path, det_path) in enumerate(images, start=1):
+        gt_groups = parse_gt(gt_path)
+        with open(det_path, encoding="utf-8") as handle:
+            det_comps = json.load(handle)["components"]
+        print(f"[{image_index}/{len(images)}] {stem}", flush=True)
+        for config_name, config in configs.items():
+            stage_summary = {}
+            error = ""
+            try:
+                result = process_fn(image_path, config=dict(config))
+                if result is None:
+                    raise RuntimeError("process_image returned None")
+                if result.get("evaluation") not in (None, "(LLM skipped for experiment)"):
+                    raise RuntimeError("pipeline did not confirm LLM skip")
+                metrics = evaluate(result, gt_groups, det_comps)
+                stage_summary = result.get("wiring_trace", {}).get("summary", {})
+                _write_json(output / "predictions" / config_name / f"{stem}.json", result)
+                print(
+                    f"  {config_name}: TP={metrics['edge_tp']} FP={metrics['edge_fp']} "
+                    f"FN={metrics['edge_fn']} F1={metrics['edge_f1']:.4f}",
+                    flush=True,
+                )
+            except Exception as exc:
+                error = f"{type(exc).__name__}: {exc}"
+                failures.append({"image": stem, "config": config_name, "error": error})
+                gt_edges = sum(len(group) * (len(group) - 1) // 2 for group in gt_groups)
+                metrics = {
+                    "port_correct_rate": 0.0, "fp_rate": 0.0, "fn_rate": 1.0,
+                    "group_accuracy": 0.0, "comp_neighbor_accuracy": 0.0,
+                    "edge_tp": 0, "edge_fp": 0, "edge_fn": gt_edges,
+                    "edge_precision": 0.0, "edge_recall": 0.0, "edge_f1": 0.0,
+                    "n_gt_groups": len(gt_groups), "n_pred_groups": 0,
+                }
+                print(f"  {config_name}: ERROR - {error}", flush=True)
+            rows.append({
+                "image": stem,
+                "config": config_name,
+                "n_components": len(det_comps),
+                **metrics,
+                "stage_summary": json.dumps(stage_summary, ensure_ascii=False, sort_keys=True),
+                "stage_summary_raw": stage_summary,
+                "error": error,
+            })
+
+    csv_columns = [
+        "image", "config", "n_components", "n_gt_groups", "n_pred_groups",
+        "edge_tp", "edge_fp", "edge_fn", "edge_precision", "edge_recall", "edge_f1",
+        "port_correct_rate", "fp_rate", "fn_rate", "group_accuracy",
+        "comp_neighbor_accuracy", "stage_summary", "error",
+    ]
+    with (output / "experiment_results.csv").open(
+        "w", encoding="utf-8-sig", newline="",
+    ) as handle:
+        writer = csv.DictWriter(handle, fieldnames=csv_columns, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
+
+    summary = {}
+    for config_name in configs:
+        config_rows = [row for row in rows if row["config"] == config_name]
+        tp = sum(int(row["edge_tp"]) for row in config_rows)
+        fp = sum(int(row["edge_fp"]) for row in config_rows)
+        fn = sum(int(row["edge_fn"]) for row in config_rows)
+        precision = tp / (tp + fp) if tp + fp else 0.0
+        recall = tp / (tp + fn) if tp + fn else 0.0
+        f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+        summary[config_name] = {
+            "edge": {
+                "tp": tp, "fp": fp, "fn": fn,
+                "precision": precision, "recall": recall, "f1": f1,
+            },
+            "macro_group_accuracy": float(np.mean([row["group_accuracy"] for row in config_rows])),
+            "macro_component_neighbor_accuracy": float(np.mean([row["comp_neighbor_accuracy"] for row in config_rows])),
+            "stage_summary": _aggregate_stage_summaries(config_rows),
+            "failed_images": sum(bool(row["error"]) for row in config_rows),
+        }
+    _write_json(output / "wiring_reliability_summary.json", summary)
+    _write_json(output / "failures.json", failures)
+    _write_json(output / "run_metadata.json", {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "suite": "wiring-reliability",
+        "git_revision": get_git_revision(),
+        "benchmark_dir": str(Path(benchmark_dir).resolve()),
+        "image_count": len(images),
+        "expected_case_count": expected_count,
+        "selected_images": [stem for stem, *_ in images],
+        "config_count": len(configs),
+        "configs": configs,
+        "ocr_model_sha256": _file_sha256(DEFAULT_CONFIG["ocr_model_path"]),
+        "detector_model_sha256": _file_sha256("runs/detect/cghd_61cls/weights/best.pt"),
+        "failure_count": len(failures),
+        "final_42_image_test_used": False,
+    })
+    print(f"Saved {len(rows)} rows; failures={len(failures)}")
+    return output
+
+
 def main(output_dir=None):
     output_dir = resolve_output_dir(output_dir)
     images = get_image_list()
@@ -508,8 +724,33 @@ def main(output_dir=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--suite",
+        choices=("general", "wiring-reliability"),
+        default="general",
+        help="Experiment suite to run.",
+    )
+    parser.add_argument(
         "--output-dir",
         help="Directory for this run's CSV, plots, and metadata.",
     )
+    parser.add_argument(
+        "--images",
+        help="Comma-separated benchmark stems (wiring-reliability only).",
+    )
+    parser.add_argument(
+        "--expected-count",
+        type=int,
+        help="Refuse the run unless this many GT-backed cases are scheduled.",
+    )
     args = parser.parse_args()
-    main(args.output_dir)
+    if args.suite == "wiring-reliability":
+        selected = [item.strip() for item in args.images.split(",") if item.strip()] if args.images else None
+        run_wiring_reliability_experiment(
+            output_dir=args.output_dir,
+            selected_images=selected,
+            expected_count=args.expected_count,
+        )
+    else:
+        if args.images or args.expected_count is not None:
+            parser.error("--images and --expected-count require --suite wiring-reliability")
+        main(args.output_dir)
