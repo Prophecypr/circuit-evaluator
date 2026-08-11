@@ -59,6 +59,7 @@ DEFAULT_CONFIG = {
     "use_outward_skeleton_trace": True,
     "use_outward_port_anchors": True,
     "use_directional_gap_bridge": False,
+    "use_directional_morph_close": False,
     "use_strict_jj": True,
     "use_crossing_semantics": False,
     "skip_ocr": False,
@@ -907,7 +908,7 @@ def _build_ccl_wire_mask(gray_img, components, use_component_mask, im_scale=1.0)
 
 
 def _extract_scaled_skeleton(gray_img, components=None, im_scale=1.0,
-                             max_dim=800):
+                             max_dim=800, directional_close_length=0):
     """Extract a skeleton using the legacy scaled 15/4 threshold flow."""
     components = [] if components is None else components
     orig_h, orig_w = gray_img.shape[:2]
@@ -929,7 +930,9 @@ def _extract_scaled_skeleton(gray_img, components=None, im_scale=1.0,
         threshold_block_size=15, threshold_c=4,
     )
     skeleton = _extract_skeleton_from_mask(
-        wire_mask, max_dim=max(scaled_gray.shape[:2]),
+        wire_mask,
+        max_dim=max(scaled_gray.shape[:2]),
+        directional_close_length=directional_close_length,
     )
     if scale < 1.0:
         skeleton = cv2.resize(
@@ -939,14 +942,34 @@ def _extract_scaled_skeleton(gray_img, components=None, im_scale=1.0,
 
 
 def _extract_component_masked_skeleton(gray_img, components, im_scale=1.0,
-                                       max_dim=800):
+                                       max_dim=800, directional_close_length=0):
     """Extract a scaled skeleton after masking component interiors."""
     return _extract_scaled_skeleton(
-        gray_img, components, im_scale=im_scale, max_dim=max_dim,
+        gray_img,
+        components,
+        im_scale=im_scale,
+        max_dim=max_dim,
+        directional_close_length=directional_close_length,
     )
 
 
-def _extract_skeleton_from_mask(binary_mask, max_dim=800):
+def _directional_close_wire_mask(binary_mask, kernel_length=5):
+    """Close only short horizontal/vertical mask gaps, never diagonal ones."""
+    if kernel_length <= 1:
+        return binary_mask.copy()
+    horizontal_kernel = np.ones((1, int(kernel_length)), np.uint8)
+    vertical_kernel = np.ones((int(kernel_length), 1), np.uint8)
+    horizontal = cv2.morphologyEx(
+        binary_mask, cv2.MORPH_CLOSE, horizontal_kernel, iterations=1,
+    )
+    vertical = cv2.morphologyEx(
+        binary_mask, cv2.MORPH_CLOSE, vertical_kernel, iterations=1,
+    )
+    return cv2.bitwise_or(binary_mask, cv2.bitwise_or(horizontal, vertical))
+
+
+def _extract_skeleton_from_mask(binary_mask, max_dim=800,
+                                directional_close_length=0):
     """Extract single-pixel skeleton from a white-foreground binary mask.
     Steps: resize → morph close → Zhang-Suen thinning.
     Returns binary skeleton image (255=wire, 0=background) at ORIGINAL resolution.
@@ -957,6 +980,10 @@ def _extract_skeleton_from_mask(binary_mask, max_dim=800):
         scale = max_dim / max(orig_h, orig_w)
         binary_mask = cv2.resize(binary_mask, (int(orig_w*scale), int(orig_h*scale)),
                                  interpolation=cv2.INTER_NEAREST)
+    if directional_close_length > 1:
+        binary_mask = _directional_close_wire_mask(
+            binary_mask, kernel_length=directional_close_length,
+        )
     # Bridge small gaps (≤3px)
     kernel = np.ones((3, 3), np.uint8)
     closed = cv2.morphologyEx(binary_mask, cv2.MORPH_CLOSE, kernel, iterations=1)
@@ -996,9 +1023,13 @@ def _extract_skeleton_from_mask(binary_mask, max_dim=800):
     return skeleton
 
 
-def _extract_skeleton(gray_img, max_dim=800):
+def _extract_skeleton(gray_img, max_dim=800, directional_close_length=0):
     """Backward-compatible grayscale wrapper around mask-based extraction."""
-    return _extract_scaled_skeleton(gray_img, max_dim=max_dim)
+    return _extract_scaled_skeleton(
+        gray_img,
+        max_dim=max_dim,
+        directional_close_length=directional_close_length,
+    )
 
 
 def _snap_ports_to_skeleton(components, skeleton, search_radius=15):
@@ -1885,10 +1916,20 @@ def process_image(img_path, config=None):
         try:
             if config["use_component_mask"]:
                 skeleton = _extract_component_masked_skeleton(
-                    gray, components, im_scale=im_scale,
+                    gray,
+                    components,
+                    im_scale=im_scale,
+                    directional_close_length=(
+                        5 if config["use_directional_morph_close"] else 0
+                    ),
                 )
             else:
-                skeleton = _extract_skeleton(gray)
+                skeleton = _extract_skeleton(
+                    gray,
+                    directional_close_length=(
+                        5 if config["use_directional_morph_close"] else 0
+                    ),
+                )
             # Pre-compute junction branch counts from skeleton
             _junc_branch_count = {}
             for jx, jy in junctions:

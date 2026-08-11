@@ -148,6 +148,7 @@ def test_wiring_reliability_configs_keep_candidate_changes_independent_and_llm_f
         "frozen_baseline", "observability", "terminal", "strict_fallback",
         "outward_trace", "strict_jj", "directional_gap_bridge",
         "outward_port_anchors",
+        "directional_morph_close",
         "crossing_semantics",
     ]
     assert all(config["skip_llm"] is True for config in configs.values())
@@ -163,6 +164,7 @@ def test_wiring_reliability_configs_keep_candidate_changes_independent_and_llm_f
     assert configs["strict_jj"]["use_outward_port_anchors"] is False
     assert configs["directional_gap_bridge"]["use_directional_gap_bridge"] is True
     assert configs["outward_port_anchors"]["use_outward_port_anchors"] is True
+    assert configs["directional_morph_close"]["use_directional_morph_close"] is True
     assert configs["crossing_semantics"]["use_crossing_semantics"] is True
 
     strict_jj = configs["strict_jj"]
@@ -180,6 +182,14 @@ def test_wiring_reliability_configs_keep_candidate_changes_independent_and_llm_f
         assert {
             key for key in strict_jj if strict_jj[key] != candidate[key]
         } == {feature_name}
+
+    outward_port_anchors = configs["outward_port_anchors"]
+    directional_morph_close = configs["directional_morph_close"]
+    assert {
+        key
+        for key in outward_port_anchors
+        if outward_port_anchors[key] != directional_morph_close[key]
+    } == {"use_directional_morph_close"}
 
 
 def test_output_directory_is_explicit_and_created(tmp_path):

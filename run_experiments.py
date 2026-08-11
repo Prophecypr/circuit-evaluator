@@ -81,6 +81,10 @@ def build_wiring_reliability_configs():
         **strict_jj,
         "use_outward_port_anchors": True,
     }
+    directional_morph_close = {
+        **outward_port_anchors,
+        "use_directional_morph_close": True,
+    }
     crossing_semantics = {
         **strict_jj,
         "use_crossing_semantics": True,
@@ -94,6 +98,7 @@ def build_wiring_reliability_configs():
         "strict_jj": strict_jj,
         "directional_gap_bridge": directional_gap_bridge,
         "outward_port_anchors": outward_port_anchors,
+        "directional_morph_close": directional_morph_close,
         "crossing_semantics": crossing_semantics,
     }
 

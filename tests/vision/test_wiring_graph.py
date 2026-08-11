@@ -106,6 +106,37 @@ def test_pipeline_exposes_strict_jj_feature_flags():
 
     assert unified_pipeline.DEFAULT_CONFIG["use_strict_jj"] is True
     assert unified_pipeline.DEFAULT_CONFIG["use_crossing_semantics"] is False
+    assert unified_pipeline.DEFAULT_CONFIG["use_directional_morph_close"] is False
+
+
+def test_directional_close_repairs_short_horizontal_and_vertical_gaps():
+    import cv2
+    from src.vision.unified_pipeline import _directional_close_wire_mask
+
+    mask = np.zeros((31, 31), dtype=np.uint8)
+    mask[8, 2:12] = 255
+    mask[8, 15:26] = 255
+    mask[14:21, 5] = 255
+    mask[24:29, 5] = 255
+
+    closed = _directional_close_wire_mask(mask, kernel_length=5)
+
+    assert closed[8, 12:15].all()
+    assert closed[21:24, 5].all()
+    assert cv2.connectedComponents(closed)[0] == 3
+
+
+def test_directional_close_does_not_join_diagonally_offset_segments():
+    import cv2
+    from src.vision.unified_pipeline import _directional_close_wire_mask
+
+    mask = np.zeros((31, 31), dtype=np.uint8)
+    mask[8, 2:12] = 255
+    mask[11, 15:26] = 255
+
+    closed = _directional_close_wire_mask(mask, kernel_length=5)
+
+    assert cv2.connectedComponents(closed)[0] == 3
 
 
 def test_terminal_never_accepts_an_ocr_value():
