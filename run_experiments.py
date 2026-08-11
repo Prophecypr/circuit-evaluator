@@ -20,6 +20,10 @@ import matplotlib.pyplot as plt
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.vision.unified_pipeline import process_image, DEFAULT_CONFIG
+from src.vision.wiring_topology import (
+    build_edge_inventory,
+    match_components as match_topology_components,
+)
 
 BENCHMARK = Path("benchmark")
 RESULT = BENCHMARK / "result"
@@ -141,34 +145,8 @@ def parse_gt(gt_path):
 # Component matching: pipeline components ↔ detection JSON components
 # ---------------------------------------------------------------------------
 def match_components(pipeline_comps, det_comps):
-    """Match pipeline components to detection JSON components by bounding-box IoU.
-
-    Returns dict: pipeline_comp_idx -> detection_comp_idx
-    """
-    matches = {}
-    used = set()
-    for pi, pc in enumerate(pipeline_comps):
-        px1, py1, px2, py2 = pc.get("xyxy", [0, 0, 0, 0])
-        best_iou, best_di = 0.0, None
-        for di, dc in enumerate(det_comps):
-            if di in used:
-                continue
-            dx1, dy1, dx2, dy2 = dc["xyxy"]
-            ix1, iy1 = max(px1, dx1), max(py1, dy1)
-            ix2, iy2 = min(px2, dx2), min(py2, dy2)
-            if ix2 <= ix1 or iy2 <= iy1:
-                continue
-            inter = (ix2 - ix1) * (iy2 - iy1)
-            area_p = (px2 - px1) * (py2 - py1)
-            area_d = (dx2 - dx1) * (dy2 - dy1)
-            iou = inter / (area_p + area_d - inter) if (area_p + area_d - inter) > 0 else 0
-            if iou > best_iou and iou > 0.3:
-                best_iou = iou
-                best_di = di
-        if best_di is not None:
-            matches[pi] = best_di
-            used.add(best_di)
-    return matches
+    """Compatibility wrapper around the shared IoU component matcher."""
+    return match_topology_components(pipeline_comps, det_comps)
 
 
 # ---------------------------------------------------------------------------
@@ -292,22 +270,18 @@ def evaluate(pipeline_result, gt_groups, det_comps):
 
     comp_neighbor_accuracy = neighbor_correct / neighbor_total if neighbor_total else 0.0
 
-    # Port-level metrics via edge comparison
-    def group_to_edges(groups):
-        edges = set()
-        for g in groups:
-            ports = sorted(g)
-            for i in range(len(ports)):
-                for j in range(i + 1, len(ports)):
-                    edges.add((ports[i], ports[j]))
-        return edges
-
-    gt_edges = group_to_edges(gt_sets)
-    pred_edges = group_to_edges(pred_groups)
-
-    tp_edges = len(gt_edges & pred_edges)
-    fp_edges = len(pred_edges - gt_edges)
-    fn_edges = len(gt_edges - pred_edges)
+    # Port-level metrics use the same canonical inventory as diagnostics.
+    inventory = build_edge_inventory(
+        pipeline_result,
+        gt_groups,
+        det_comps,
+        port_match_radius=PORT_MATCH_RADIUS,
+    )
+    gt_edges = set(inventory.gt_edges)
+    pred_edges = set(inventory.pred_edges)
+    tp_edges = len(inventory.tp_edges)
+    fp_edges = len(inventory.fp_edges)
+    fn_edges = len(inventory.fn_edges)
 
     port_correct_rate = tp_edges / len(gt_edges) if gt_edges else 0.0
     fp_rate = fp_edges / len(pred_edges) if pred_edges else 0.0
