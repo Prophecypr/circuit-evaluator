@@ -19,7 +19,9 @@ from src.vision.ocr_v2.runtime import load_ocr_runtime
 from src.vision.wiring_graph import (
     WiringTrace,
     accept_p2j_candidate,
+    build_trace_anchors,
     classify_connection_detection,
+    parse_trace_anchor_id,
     strict_jj_decision,
     trace_port_to_anchor,
 )
@@ -55,6 +57,7 @@ DEFAULT_CONFIG = {
     "use_wiring_trace": True,
     "use_strict_p2j": True,
     "use_outward_skeleton_trace": True,
+    "use_outward_port_anchors": False,
     "use_directional_gap_bridge": False,
     "use_strict_jj": True,
     "use_crossing_semantics": False,
@@ -1907,18 +1910,25 @@ def process_image(img_path, config=None):
     # ---- Step 6: Port → Junction connections ----
     if not config["use_ccl"]:
         p2j_connections = []  # [(comp_idx, port_idx, jx, jy)]
+        traced_p2p_pairs = set()
         for ci, c in enumerate(components):
             for pi, (px, py) in enumerate(c["ports"]):
+                trace_anchors = build_trace_anchors(
+                    junctions=junctions,
+                    components=components,
+                    source_component_index=ci,
+                    include_component_ports=config["use_outward_port_anchors"],
+                )
                 if (
                     config["use_outward_skeleton_trace"]
                     and skeleton is not None
-                    and junctions
+                    and trace_anchors
                 ):
                     traced = trace_port_to_anchor(
                         skeleton=skeleton,
                         port=(px, py),
                         component_center=(c["cx"], c["cy"]),
-                        anchors=[(f"{jx},{jy}", (jx, jy)) for jx, jy in junctions],
+                        anchors=trace_anchors,
                         search_radius=skel_search,
                         anchor_radius=max(6, int(10 * im_scale)),
                         max_steps=max(100, int(600 * im_scale)),
@@ -1929,6 +1939,40 @@ def process_image(img_path, config=None):
                         ),
                     )
                     if traced is not None:
+                        anchor_kind = parse_trace_anchor_id(traced["anchor_id"])
+                        if anchor_kind[0] == "port":
+                            _, other_ci, other_pi = anchor_kind
+                            pair = tuple(sorted(((ci, pi), (other_ci, other_pi))))
+                            if pair in traced_p2p_pairs:
+                                wiring_trace.record(
+                                    "p2p_trace", "p2p", False, "duplicate_pair",
+                                    source={"component_index": ci, "port_index": pi},
+                                    target={
+                                        "component_index": other_ci,
+                                        "port_index": other_pi,
+                                    },
+                                )
+                                continue
+                            other_x, other_y = components[other_ci]["ports"][other_pi]
+                            mx, my = (px + other_x) // 2, (py + other_y) // 2
+                            p2j_connections.append((ci, pi, mx, my))
+                            p2j_connections.append((other_ci, other_pi, mx, my))
+                            traced_p2p_pairs.add(pair)
+                            if (mx, my) not in junctions:
+                                junctions.append((mx, my))
+                            wiring_trace.record(
+                                "p2p_trace", "p2p", True, traced["reason"],
+                                source={"component_index": ci, "port_index": pi},
+                                target={
+                                    "component_index": other_ci,
+                                    "port_index": other_pi,
+                                },
+                                path_length=traced["path_length"],
+                                visited_pixels=traced["visited_pixels"],
+                                gap_bridges=traced["gap_bridges"],
+                                max_gap=traced["max_gap"],
+                            )
+                            continue
                         jx, jy = traced["anchor"]
                         p2j_connections.append((ci, pi, jx, jy))
                         wiring_trace.record(

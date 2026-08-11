@@ -3,8 +3,10 @@ import numpy as np
 from src.vision.wiring_graph import (
     WiringTrace,
     accept_p2j_candidate,
+    build_trace_anchors,
     classify_connection_detection,
     network_color,
+    parse_trace_anchor_id,
     strict_jj_decision,
     terminal_component,
     trace_port_to_anchor,
@@ -96,6 +98,7 @@ def test_publication_selected_defaults_match_best_full50_configuration():
     assert unified_pipeline.DEFAULT_CONFIG["use_strict_jj"] is True
     assert unified_pipeline.DEFAULT_CONFIG["use_crossing_semantics"] is False
     assert unified_pipeline.DEFAULT_CONFIG["use_directional_gap_bridge"] is False
+    assert unified_pipeline.DEFAULT_CONFIG["use_outward_port_anchors"] is False
 
 
 def test_pipeline_exposes_strict_jj_feature_flags():
@@ -173,6 +176,55 @@ def test_trace_port_to_anchor_returns_first_outward_anchor():
 
     assert result["anchor_id"] == "J1"
     assert result["anchor"] == (20, 10)
+    assert result["reason"] == "continuous_skeleton_path"
+
+
+def test_trace_anchor_catalog_includes_other_component_ports_but_not_source_ports():
+    components = [
+        {"ports": [(5, 10), (5, 15)]},
+        {"ports": [(30, 10), (30, 15)]},
+    ]
+
+    anchors = build_trace_anchors(
+        junctions=[(20, 10)],
+        components=components,
+        source_component_index=0,
+        include_component_ports=True,
+    )
+
+    assert anchors == [
+        ("junction:0", (20, 10)),
+        ("port:1:0", (30, 10)),
+        ("port:1:1", (30, 15)),
+    ]
+    assert parse_trace_anchor_id("junction:0") == ("junction", 0)
+    assert parse_trace_anchor_id("port:1:0") == ("port", 1, 0)
+
+
+def test_trace_reaches_other_component_port_when_no_junction_is_present():
+    skeleton = np.zeros((21, 41), dtype=np.uint8)
+    skeleton[10, 5:31] = 255
+    components = [
+        {"ports": [(5, 10)]},
+        {"ports": [(30, 10)]},
+    ]
+
+    result = trace_port_to_anchor(
+        skeleton=skeleton,
+        port=(5, 10),
+        component_center=(0, 10),
+        anchors=build_trace_anchors(
+            junctions=[],
+            components=components,
+            source_component_index=0,
+            include_component_ports=True,
+        ),
+        search_radius=2,
+        anchor_radius=1,
+        max_steps=100,
+    )
+
+    assert result["anchor_id"] == "port:1:0"
     assert result["reason"] == "continuous_skeleton_path"
 
 

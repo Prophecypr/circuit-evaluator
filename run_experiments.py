@@ -76,8 +76,12 @@ def build_wiring_reliability_configs():
         **strict_jj,
         "use_directional_gap_bridge": True,
     }
+    outward_port_anchors = {
+        **strict_jj,
+        "use_outward_port_anchors": True,
+    }
     crossing_semantics = {
-        **directional_gap_bridge,
+        **strict_jj,
         "use_crossing_semantics": True,
     }
     return {
@@ -88,6 +92,7 @@ def build_wiring_reliability_configs():
         "outward_trace": outward_trace,
         "strict_jj": strict_jj,
         "directional_gap_bridge": directional_gap_bridge,
+        "outward_port_anchors": outward_port_anchors,
         "crossing_semantics": crossing_semantics,
     }
 

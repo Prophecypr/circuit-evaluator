@@ -178,6 +178,46 @@ def accept_p2j_candidate(
     return True, "legacy_distance_fallback"
 
 
+def build_trace_anchors(
+    *,
+    junctions: Iterable[tuple[int, int]],
+    components: Iterable[dict[str, Any]],
+    source_component_index: int,
+    include_component_ports: bool,
+) -> list[tuple[str, tuple[int, int]]]:
+    """Build typed, deterministic anchors for one outward port trace.
+
+    Ports on the source component are deliberately excluded so a trace can
+    never short two terminals of the same detected component.
+    """
+    anchors = [
+        (f"junction:{index}", (int(point[0]), int(point[1])))
+        for index, point in enumerate(junctions)
+    ]
+    if not include_component_ports:
+        return anchors
+
+    for component_index, component in enumerate(components):
+        if component_index == source_component_index:
+            continue
+        for port_index, point in enumerate(component.get("ports", [])):
+            anchors.append((
+                f"port:{component_index}:{port_index}",
+                (int(point[0]), int(point[1])),
+            ))
+    return anchors
+
+
+def parse_trace_anchor_id(anchor_id: str) -> tuple[Any, ...]:
+    """Decode an anchor ID produced by :func:`build_trace_anchors`."""
+    parts = str(anchor_id).split(":")
+    if len(parts) == 2 and parts[0] == "junction":
+        return "junction", int(parts[1])
+    if len(parts) == 3 and parts[0] == "port":
+        return "port", int(parts[1]), int(parts[2])
+    raise ValueError(f"unsupported trace anchor id: {anchor_id}")
+
+
 def trace_port_to_anchor(
     *,
     skeleton,

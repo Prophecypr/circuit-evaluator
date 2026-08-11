@@ -141,12 +141,13 @@ def test_ablation_configs_are_full_unique_and_llm_free():
     assert len(fingerprints) == len(configs)
 
 
-def test_wiring_reliability_configs_are_cumulative_and_llm_free():
+def test_wiring_reliability_configs_keep_candidate_changes_independent_and_llm_free():
     configs = build_wiring_reliability_configs()
 
     assert list(configs) == [
         "frozen_baseline", "observability", "terminal", "strict_fallback",
         "outward_trace", "strict_jj", "directional_gap_bridge",
+        "outward_port_anchors",
         "crossing_semantics",
     ]
     assert all(config["skip_llm"] is True for config in configs.values())
@@ -160,6 +161,7 @@ def test_wiring_reliability_configs_are_cumulative_and_llm_free():
     assert configs["outward_trace"]["use_outward_skeleton_trace"] is True
     assert configs["strict_jj"]["use_strict_jj"] is True
     assert configs["directional_gap_bridge"]["use_directional_gap_bridge"] is True
+    assert configs["outward_port_anchors"]["use_outward_port_anchors"] is True
     assert configs["crossing_semantics"]["use_crossing_semantics"] is True
 
     strict_jj = configs["strict_jj"]
@@ -169,15 +171,14 @@ def test_wiring_reliability_configs_are_cumulative_and_llm_free():
         for key in strict_jj
         if strict_jj[key] != directional_gap_bridge[key]
     } == {"use_directional_gap_bridge"}
-
-    ordered = list(configs.values())
-    keys = [
-        "use_wiring_trace", "use_terminal_components", "use_strict_p2j",
-        "use_outward_skeleton_trace", "use_strict_jj",
-        "use_directional_gap_bridge", "use_crossing_semantics",
-    ]
-    for earlier, later in zip(ordered, ordered[1:]):
-        assert all(not earlier[key] or later[key] for key in keys)
+    for candidate_name, feature_name in (
+        ("outward_port_anchors", "use_outward_port_anchors"),
+        ("crossing_semantics", "use_crossing_semantics"),
+    ):
+        candidate = configs[candidate_name]
+        assert {
+            key for key in strict_jj if strict_jj[key] != candidate[key]
+        } == {feature_name}
 
 
 def test_output_directory_is_explicit_and_created(tmp_path):
@@ -302,7 +303,7 @@ def test_wiring_reliability_runner_writes_edge_and_trace_outputs(tmp_path, monke
 
     with (output / "experiment_results.csv").open(encoding="utf-8-sig", newline="") as handle:
         rows = list(csv.DictReader(handle))
-    assert len(rows) == 8
+    assert len(rows) == len(build_wiring_reliability_configs())
     assert all(float(row["edge_f1"]) == pytest.approx(1.0) for row in rows)
     assert json.loads(rows[-1]["stage_summary"])["p2j"]["accepted"] == 2
     summary = json.loads((output / "wiring_reliability_summary.json").read_text(encoding="utf-8"))
@@ -417,7 +418,7 @@ def test_merge_wiring_reliability_shards_requires_exact_unique_coverage(tmp_path
 
     with (output / "experiment_results.csv").open(encoding="utf-8-sig", newline="") as handle:
         rows = list(csv.DictReader(handle))
-    assert len(rows) == 16
+    assert len(rows) == 2 * len(configs)
     assert {row["image"] for row in rows} == {"a", "b"}
     assert (output / "predictions" / "crossing_semantics" / "b.json").is_file()
     metadata = json.loads((output / "run_metadata.json").read_text(encoding="utf-8"))
@@ -468,7 +469,7 @@ def test_recover_complete_wiring_predictions_ignores_incomplete_images(tmp_path)
 
     with (output / "experiment_results.csv").open(encoding="utf-8-sig", newline="") as handle:
         rows = list(csv.DictReader(handle))
-    assert len(rows) == 8
+    assert len(rows) == len(configs)
     assert {row["image"] for row in rows} == {"a"}
     metadata = json.loads((output / "run_metadata.json").read_text(encoding="utf-8"))
     assert metadata["image_count"] == 1
