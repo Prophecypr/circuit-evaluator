@@ -101,3 +101,38 @@
 ## 9. Kaggle 运行说明
 
 可以在 Kaggle 运行完整实验，但加速收益不会像 OCR/YOLO 训练那么明显。YOLO 推理可使用 T4 GPU，骨架化、路径搜索和图构建主要依赖 CPU。Kaggle 更适合用于长时间不中断地跑分片或多配置实验；本地与 Kaggle 必须固定相同代码版本、模型哈希和配置，并合并检查完整图像数后才能比较结果。
+
+## 10. 50 图错误归因结果（2026-08-11）
+
+使用缓存的 `strict_jj` 预测、人工 wiring GT 和逐边 trace 在本地完成错误归因。分析没有重新运行 YOLO/OCR，没有调用 LLM，也没有读取最终 42 张封存测试图。50 张全部完成，边统计与原实验严格对账：TP/FP/FN 为 `305/537/1002`，共 1539 条 FP/FN。
+
+| 类别 | 错误边数 | 根因数 | 涉及图像 | 占全部 FP/FN |
+|---|---:|---:|---:|---:|
+| skeleton_break | 365 | 365 | 45 | 23.72% |
+| no_port_skeleton | 284 | 284 | 38 | 18.45% |
+| network_split_unresolved | 227 | 227 | 32 | 14.75% |
+| port_unmatched | 93 | 93 | 14 | 6.04% |
+| component_unmatched | 29 | 29 | 5 | 1.88% |
+| candidate_rejected | 4 | 4 | 3 | 0.26% |
+| wrong_port_to_junction | 62 | 62 | 29 | 4.03% |
+| wrong_port_to_port | 11 | 11 | 10 | 0.71% |
+| unattributed_merge | 5 | 5 | 5 | 0.32% |
+| local_false_edge | 4 | 4 | 2 | 0.26% |
+| cascade_fp | 455 | 0 | 30 | 29.56% |
+
+关键结论：
+
+- `skeleton_break` 是数量最多的可操作根因：365 条 FN，涉及 45/50 张图。
+- `skeleton_break` 与 `no_port_skeleton` 合计造成 649/1002 条 FN，占全部 FN 的 64.77%，说明 Recall 的主要瓶颈是端口到线网的局部骨架证据缺失或中断。
+- 537 条 FP 中有 455 条是错误并网后产生的派生 clique 边；因此不能把455条分别当作455次独立误判。实际识别出的 FP 根因共82个，其中 `wrong_port_to_junction` 为62个。
+- 最差10张清晰诊断图已人工抽查。图中只绘制根因FP和每个GT网络/类别的一条代表FN，并在左上角保留完整 FP/FN/cascade 数，避免复杂网络被派生 clique 线完全遮挡。原始密集版仍保留在本地备份目录。
+
+下一轮只选择一个主目标：**修复 `skeleton_break`**。拟采用“端口出发方向约束的局部骨架断点桥接”，只在端口朝外方向的小范围内连接共线断点，不放宽全局 P2J/JJ 距离阈值，以避免重新引入大规模错误并网。
+
+下一轮进入完整50张实验的最低通过条件：
+
+- wiring edge F1 必须高于 `0.2838529548627269`；
+- wiring edge Precision 必须不低于 `0.3522327790973872`，即相对当前最佳值最多下降1个百分点；
+- 仍不得使用最终42张测试图调参。
+
+错误归因正式输出：`results/wiring_error_attribution_20260811/`。其中包括 `edge_errors.csv`、`image_summary.csv`、`category_summary.json`、`wiring_error_report.md`、10张诊断图及带全部输入文件哈希的 `run_metadata.json`。
