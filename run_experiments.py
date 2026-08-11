@@ -72,7 +72,14 @@ def build_wiring_reliability_configs():
     strict_fallback = {**terminal, "use_strict_p2j": True}
     outward_trace = {**strict_fallback, "use_outward_skeleton_trace": True}
     strict_jj = {**outward_trace, "use_strict_jj": True}
-    crossing_semantics = {**strict_jj, "use_crossing_semantics": True}
+    directional_gap_bridge = {
+        **strict_jj,
+        "use_directional_gap_bridge": True,
+    }
+    crossing_semantics = {
+        **directional_gap_bridge,
+        "use_crossing_semantics": True,
+    }
     return {
         "frozen_baseline": baseline,
         "observability": observability,
@@ -80,6 +87,7 @@ def build_wiring_reliability_configs():
         "strict_fallback": strict_fallback,
         "outward_trace": outward_trace,
         "strict_jj": strict_jj,
+        "directional_gap_bridge": directional_gap_bridge,
         "crossing_semantics": crossing_semantics,
     }
 

@@ -146,7 +146,8 @@ def test_wiring_reliability_configs_are_cumulative_and_llm_free():
 
     assert list(configs) == [
         "frozen_baseline", "observability", "terminal", "strict_fallback",
-        "outward_trace", "strict_jj", "crossing_semantics",
+        "outward_trace", "strict_jj", "directional_gap_bridge",
+        "crossing_semantics",
     ]
     assert all(config["skip_llm"] is True for config in configs.values())
     assert all(config["skip_ocr"] is True for config in configs.values())
@@ -158,12 +159,22 @@ def test_wiring_reliability_configs_are_cumulative_and_llm_free():
     assert configs["strict_fallback"]["use_strict_p2j"] is True
     assert configs["outward_trace"]["use_outward_skeleton_trace"] is True
     assert configs["strict_jj"]["use_strict_jj"] is True
+    assert configs["directional_gap_bridge"]["use_directional_gap_bridge"] is True
     assert configs["crossing_semantics"]["use_crossing_semantics"] is True
+
+    strict_jj = configs["strict_jj"]
+    directional_gap_bridge = configs["directional_gap_bridge"]
+    assert {
+        key
+        for key in strict_jj
+        if strict_jj[key] != directional_gap_bridge[key]
+    } == {"use_directional_gap_bridge"}
 
     ordered = list(configs.values())
     keys = [
         "use_wiring_trace", "use_terminal_components", "use_strict_p2j",
-        "use_outward_skeleton_trace", "use_strict_jj", "use_crossing_semantics",
+        "use_outward_skeleton_trace", "use_strict_jj",
+        "use_directional_gap_bridge", "use_crossing_semantics",
     ]
     for earlier, later in zip(ordered, ordered[1:]):
         assert all(not earlier[key] or later[key] for key in keys)
@@ -291,7 +302,7 @@ def test_wiring_reliability_runner_writes_edge_and_trace_outputs(tmp_path, monke
 
     with (output / "experiment_results.csv").open(encoding="utf-8-sig", newline="") as handle:
         rows = list(csv.DictReader(handle))
-    assert len(rows) == 7
+    assert len(rows) == 8
     assert all(float(row["edge_f1"]) == pytest.approx(1.0) for row in rows)
     assert json.loads(rows[-1]["stage_summary"])["p2j"]["accepted"] == 2
     summary = json.loads((output / "wiring_reliability_summary.json").read_text(encoding="utf-8"))
@@ -406,7 +417,7 @@ def test_merge_wiring_reliability_shards_requires_exact_unique_coverage(tmp_path
 
     with (output / "experiment_results.csv").open(encoding="utf-8-sig", newline="") as handle:
         rows = list(csv.DictReader(handle))
-    assert len(rows) == 14
+    assert len(rows) == 16
     assert {row["image"] for row in rows} == {"a", "b"}
     assert (output / "predictions" / "crossing_semantics" / "b.json").is_file()
     metadata = json.loads((output / "run_metadata.json").read_text(encoding="utf-8"))
@@ -457,7 +468,7 @@ def test_recover_complete_wiring_predictions_ignores_incomplete_images(tmp_path)
 
     with (output / "experiment_results.csv").open(encoding="utf-8-sig", newline="") as handle:
         rows = list(csv.DictReader(handle))
-    assert len(rows) == 7
+    assert len(rows) == 8
     assert {row["image"] for row in rows} == {"a"}
     metadata = json.loads((output / "run_metadata.json").read_text(encoding="utf-8"))
     assert metadata["image_count"] == 1

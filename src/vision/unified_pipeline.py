@@ -55,6 +55,7 @@ DEFAULT_CONFIG = {
     "use_wiring_trace": True,
     "use_strict_p2j": True,
     "use_outward_skeleton_trace": True,
+    "use_directional_gap_bridge": False,
     "use_strict_jj": True,
     "use_crossing_semantics": False,
     "skip_ocr": False,
@@ -1921,6 +1922,11 @@ def process_image(img_path, config=None):
                         search_radius=skel_search,
                         anchor_radius=max(6, int(10 * im_scale)),
                         max_steps=max(100, int(600 * im_scale)),
+                        gap_bridge=(
+                            skel_gap
+                            if config["use_directional_gap_bridge"]
+                            else 0
+                        ),
                     )
                     if traced is not None:
                         jx, jy = traced["anchor"]
@@ -1934,6 +1940,8 @@ def process_image(img_path, config=None):
                             target={"junction": [jx, jy]},
                             path_length=traced["path_length"],
                             visited_pixels=traced["visited_pixels"],
+                            gap_bridges=traced["gap_bridges"],
+                            max_gap=traced["max_gap"],
                         )
                         continue
                     wiring_trace.record(
