@@ -301,6 +301,66 @@ def test_wiring_reliability_runner_writes_edge_and_trace_outputs(tmp_path, monke
     assert metadata["expected_case_count"] == 1
 
 
+def test_wiring_reliability_runner_selected_configs_preserve_requested_order(
+    tmp_path, monkeypatch,
+):
+    detections_path = tmp_path / "detections.json"
+    detections_path.write_text(json.dumps({"components": [
+        {"xyxy": [0, 0, 10, 10], "ports": [[0, 5]], "labels": ["1"], "designator": "R1"},
+        {"xyxy": [20, 0, 30, 10], "ports": [[20, 5]], "labels": ["1"], "designator": "R2"},
+    ]}), encoding="utf-8")
+    monkeypatch.setattr(
+        run_experiments, "get_image_list",
+        lambda _benchmark_dir: [("sample", "unused.jpg", "unused_gt.txt", str(detections_path))],
+    )
+    monkeypatch.setattr(
+        run_experiments, "parse_gt",
+        lambda _path: [[("R1", "1"), ("R2", "1")]],
+    )
+    seen = []
+
+    def fake_process(_image_path, config):
+        seen.append((config["use_strict_jj"], config["use_crossing_semantics"]))
+        return {
+            "components": [
+                {"xyxy": [0, 0, 10, 10], "ports": [[0, 5]]},
+                {"xyxy": [20, 0, 30, 10], "ports": [[20, 5]]},
+            ],
+            "raw_groups": [[[0, 0], [1, 0]]],
+            "evaluation": "(LLM skipped for experiment)",
+            "wiring_trace": {"events": [], "summary": {}},
+        }
+
+    output = run_experiments.run_wiring_reliability_experiment(
+        output_dir=tmp_path / "focused-run",
+        benchmark_dir=tmp_path,
+        selected_images=["sample"],
+        selected_configs=["strict_jj", "crossing_semantics"],
+        expected_count=1,
+        process_fn=fake_process,
+    )
+
+    with (output / "experiment_results.csv").open(encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert [row["config"] for row in rows] == ["strict_jj", "crossing_semantics"]
+    assert seen == [(True, False), (True, True)]
+    metadata = json.loads((output / "run_metadata.json").read_text(encoding="utf-8"))
+    assert set(metadata["configs"]) == {"strict_jj", "crossing_semantics"}
+    assert metadata["selected_config_names"] == ["strict_jj", "crossing_semantics"]
+
+
+def test_wiring_reliability_runner_rejects_unknown_config_before_output(tmp_path):
+    output = tmp_path / "unknown-config"
+
+    with pytest.raises(ValueError, match="unknown wiring reliability config"):
+        run_experiments.run_wiring_reliability_experiment(
+            output_dir=output,
+            selected_configs=["not-a-config"],
+        )
+
+    assert not output.exists()
+
+
 def test_merge_wiring_reliability_shards_requires_exact_unique_coverage(tmp_path):
     configs = build_wiring_reliability_configs()
 

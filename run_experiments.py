@@ -408,10 +408,28 @@ def run_wiring_reliability_experiment(
     output_dir,
     benchmark_dir=BENCHMARK,
     selected_images=None,
+    selected_configs=None,
     expected_count=None,
     process_fn=None,
 ):
     """Run the cumulative wiring suite without LLM calls or final-42 inputs."""
+    available_configs = build_wiring_reliability_configs()
+    if selected_configs:
+        requested_configs = [str(name) for name in selected_configs]
+        unknown_configs = [
+            name for name in requested_configs if name not in available_configs
+        ]
+        if unknown_configs:
+            raise ValueError(
+                "unknown wiring reliability config: " + ", ".join(unknown_configs)
+            )
+        configs = {
+            name: available_configs[name]
+            for name in requested_configs
+        }
+    else:
+        configs = available_configs
+
     output = resolve_output_dir(output_dir)
     images = get_image_list(benchmark_dir)
     if selected_images:
@@ -428,7 +446,6 @@ def run_wiring_reliability_experiment(
     if not images:
         raise RuntimeError("wiring reliability experiment has no images")
 
-    configs = build_wiring_reliability_configs()
     process_fn = process_fn or process_image
     rows = []
     failures = []
@@ -521,6 +538,7 @@ def run_wiring_reliability_experiment(
         "image_count": len(images),
         "expected_case_count": expected_count,
         "selected_images": [stem for stem, *_ in images],
+        "selected_config_names": list(configs),
         "config_count": len(configs),
         "configs": configs,
         "ocr_model_sha256": _file_sha256(DEFAULT_CONFIG["ocr_model_path"]),
@@ -934,6 +952,10 @@ if __name__ == "__main__":
         help="Comma-separated benchmark stems (wiring-reliability only).",
     )
     parser.add_argument(
+        "--configs",
+        help="Comma-separated wiring-reliability configurations to run.",
+    )
+    parser.add_argument(
         "--expected-count",
         type=int,
         help="Refuse the run unless this many GT-backed cases are scheduled.",
@@ -941,12 +963,18 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.suite == "wiring-reliability":
         selected = [item.strip() for item in args.images.split(",") if item.strip()] if args.images else None
+        selected_configs = [
+            item.strip() for item in args.configs.split(",") if item.strip()
+        ] if args.configs else None
         run_wiring_reliability_experiment(
             output_dir=args.output_dir,
             selected_images=selected,
+            selected_configs=selected_configs,
             expected_count=args.expected_count,
         )
     else:
-        if args.images or args.expected_count is not None:
-            parser.error("--images and --expected-count require --suite wiring-reliability")
+        if args.images or args.configs or args.expected_count is not None:
+            parser.error(
+                "--images, --configs and --expected-count require --suite wiring-reliability"
+            )
         main(args.output_dir)

@@ -18,7 +18,7 @@
 
 - [ ] **Step 1: Write failing tests**
 
-Add tests proving that `run_wiring_reliability_experiment(..., selected_configs=["strict_jj", "directional_gap_bridge"])` executes exactly those two configurations and rejects unknown configuration names before creating results.
+Add tests proving that `run_wiring_reliability_experiment(..., selected_configs=["strict_jj", "crossing_semantics"])` executes exactly those two existing configurations and rejects unknown configuration names before creating results. The later integration task separately introduces and tests `directional_gap_bridge`.
 
 - [ ] **Step 2: Run tests and verify RED**
 
