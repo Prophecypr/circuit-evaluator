@@ -1,0 +1,131 @@
+{
+  "sample_id": "E02",
+  "title": "评分样本",
+  "difficulty": "basic",
+  "error_type": "series_parallel_confusion",
+  "severity": "major",
+  "task": "9V 电源应通过两个电阻串联后接地",
+  "error_description": "两个电阻被画成并联，串联中间节点消失",
+  "expected_components": [
+    {
+      "id": "V1",
+      "class_name": "voltage.dc",
+      "value": "9V",
+      "ports": [
+        "+",
+        "-"
+      ],
+      "symbol": "voltage.dc"
+    },
+    {
+      "id": "R1",
+      "class_name": "resistor",
+      "value": "1kΩ",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "ansi_zigzag"
+    },
+    {
+      "id": "R2",
+      "class_name": "resistor",
+      "value": "2.2kΩ",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "ansi_zigzag"
+    },
+    {
+      "id": "GND",
+      "class_name": "gnd",
+      "value": null,
+      "ports": [
+        "GND"
+      ],
+      "symbol": "gnd"
+    }
+  ],
+  "observed_components": [
+    {
+      "id": "V1",
+      "class_name": "voltage.dc",
+      "value": "9V",
+      "ports": [
+        "+",
+        "-"
+      ],
+      "symbol": "voltage.dc"
+    },
+    {
+      "id": "R1",
+      "class_name": "resistor",
+      "value": "1kΩ",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "ansi_zigzag"
+    },
+    {
+      "id": "R2",
+      "class_name": "resistor",
+      "value": "2.2kΩ",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "ansi_zigzag"
+    },
+    {
+      "id": "GND",
+      "class_name": "gnd",
+      "value": null,
+      "ports": [
+        "GND"
+      ],
+      "symbol": "gnd"
+    }
+  ],
+  "expected_values": {
+    "V1": "9V",
+    "R1": "1kΩ",
+    "R2": "2.2kΩ",
+    "GND": null
+  },
+  "observed_values": {
+    "V1": "9V",
+    "R1": "1kΩ",
+    "R2": "2.2kΩ",
+    "GND": null
+  },
+  "expected_nets": {
+    "N1": [
+      "V1.+",
+      "R1.1"
+    ],
+    "N2": [
+      "R1.2",
+      "R2.1"
+    ],
+    "N0": [
+      "R2.2",
+      "V1.-",
+      "GND.GND"
+    ]
+  },
+  "observed_nets": {
+    "N1": [
+      "V1.+",
+      "R1.1",
+      "R2.1"
+    ],
+    "N0": [
+      "R1.2",
+      "R2.2",
+      "V1.-",
+      "GND.GND"
+    ]
+  }
+}

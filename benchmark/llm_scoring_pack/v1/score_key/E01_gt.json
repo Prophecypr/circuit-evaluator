@@ -1,0 +1,133 @@
+{
+  "sample_id": "E01",
+  "title": "评分样本",
+  "difficulty": "basic",
+  "error_type": "polarity_reversal",
+  "severity": "major",
+  "task": "5V 电源驱动 LED，电阻应串联限流且 LED 正极接电阻、负极接地",
+  "error_description": "LED 正负极反接",
+  "expected_components": [
+    {
+      "id": "V1",
+      "class_name": "voltage.dc",
+      "value": "5V",
+      "ports": [
+        "+",
+        "-"
+      ],
+      "symbol": "voltage.dc"
+    },
+    {
+      "id": "R1",
+      "class_name": "resistor",
+      "value": "330Ω",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "ansi_zigzag"
+    },
+    {
+      "id": "LED1",
+      "class_name": "diode.light_emitting",
+      "value": null,
+      "ports": [
+        "+",
+        "-"
+      ],
+      "symbol": "diode.light_emitting"
+    },
+    {
+      "id": "GND",
+      "class_name": "gnd",
+      "value": null,
+      "ports": [
+        "GND"
+      ],
+      "symbol": "gnd"
+    }
+  ],
+  "observed_components": [
+    {
+      "id": "V1",
+      "class_name": "voltage.dc",
+      "value": "5V",
+      "ports": [
+        "+",
+        "-"
+      ],
+      "symbol": "voltage.dc"
+    },
+    {
+      "id": "R1",
+      "class_name": "resistor",
+      "value": "330Ω",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "ansi_zigzag"
+    },
+    {
+      "id": "LED1",
+      "class_name": "diode.light_emitting",
+      "value": null,
+      "ports": [
+        "+",
+        "-"
+      ],
+      "symbol": "diode.light_emitting"
+    },
+    {
+      "id": "GND",
+      "class_name": "gnd",
+      "value": null,
+      "ports": [
+        "GND"
+      ],
+      "symbol": "gnd"
+    }
+  ],
+  "expected_values": {
+    "V1": "5V",
+    "R1": "330Ω",
+    "LED1": null,
+    "GND": null
+  },
+  "observed_values": {
+    "V1": "5V",
+    "R1": "330Ω",
+    "LED1": null,
+    "GND": null
+  },
+  "expected_nets": {
+    "N1": [
+      "V1.+",
+      "R1.1"
+    ],
+    "N2": [
+      "R1.2",
+      "LED1.+"
+    ],
+    "N0": [
+      "LED1.-",
+      "V1.-",
+      "GND.GND"
+    ]
+  },
+  "observed_nets": {
+    "N1": [
+      "V1.+",
+      "R1.1"
+    ],
+    "N2": [
+      "R1.2",
+      "LED1.-"
+    ],
+    "N0": [
+      "LED1.+",
+      "V1.-",
+      "GND.GND"
+    ]
+  }
+}

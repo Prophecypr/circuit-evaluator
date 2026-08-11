@@ -1,0 +1,277 @@
+{
+  "components": [
+    {
+      "conf": 0.9767618775367737,
+      "designator": "C1",
+      "idx": 0,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Polarized-Capacitor",
+      "ports": [
+        [
+          1366,
+          1779
+        ],
+        [
+          1367,
+          1948
+        ]
+      ],
+      "raw_name": "capacitor.polarized",
+      "xyxy": [
+        1258,
+        1779,
+        1470,
+        1948
+      ]
+    },
+    {
+      "conf": 0.9537315964698792,
+      "designator": "BAT1",
+      "idx": 1,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Battery",
+      "ports": [
+        [
+          2450,
+          1129
+        ],
+        [
+          2448,
+          1349
+        ]
+      ],
+      "raw_name": "voltage.battery",
+      "xyxy": [
+        2356,
+        1129,
+        2573,
+        1349
+      ]
+    },
+    {
+      "conf": 0.8953230977058411,
+      "designator": "R1",
+      "idx": 2,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1557,
+          1673
+        ],
+        [
+          1758,
+          1673
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1557,
+        1636,
+        1758,
+        1711
+      ]
+    },
+    {
+      "conf": 0.8670966625213623,
+      "designator": "R2",
+      "idx": 3,
+      "labels": [
+        "1",
+        "2",
+        "W"
+      ],
+      "name": "Potentiometer",
+      "ports": [
+        [
+          803,
+          1861
+        ],
+        [
+          811,
+          2042
+        ],
+        [
+          856,
+          1948
+        ]
+      ],
+      "raw_name": "resistor.adjustable",
+      "xyxy": [
+        772,
+        1861,
+        856,
+        2042
+      ]
+    },
+    {
+      "conf": 0.8537200689315796,
+      "designator": "D1",
+      "idx": 4,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Diode",
+      "ports": [
+        [
+          1013,
+          1738
+        ],
+        [
+          1121,
+          1735
+        ]
+      ],
+      "raw_name": "diode",
+      "xyxy": [
+        1013,
+        1651,
+        1121,
+        1830
+      ]
+    },
+    {
+      "conf": 0.827984094619751,
+      "designator": "Q1",
+      "idx": 5,
+      "labels": [
+        "B",
+        "E",
+        "C"
+      ],
+      "name": "BJT",
+      "ports": [
+        [
+          1946,
+          1654
+        ],
+        [
+          2050,
+          1782
+        ],
+        [
+          2072,
+          1526
+        ]
+      ],
+      "raw_name": "transistor.bjt",
+      "xyxy": [
+        1946,
+        1526,
+        2088,
+        1782
+      ]
+    },
+    {
+      "conf": 0.8272462487220764,
+      "designator": "R3",
+      "idx": 6,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          2078,
+          1057
+        ],
+        [
+          2078,
+          1251
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        2039,
+        1057,
+        2118,
+        1251
+      ]
+    },
+    {
+      "conf": 0.7769016623497009,
+      "designator": "L1",
+      "idx": 7,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "LED",
+      "ports": [
+        [
+          2101,
+          736
+        ],
+        [
+          2097,
+          862
+        ]
+      ],
+      "raw_name": "diode.light_emitting",
+      "xyxy": [
+        2016,
+        736,
+        2191,
+        862
+      ]
+    },
+    {
+      "conf": 0.7236469984054565,
+      "designator": "T1",
+      "idx": 8,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          351,
+          2035
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        326,
+        2007,
+        377,
+        2064
+      ]
+    },
+    {
+      "conf": 0.7126337289810181,
+      "designator": "T2",
+      "idx": 9,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          348,
+          1905
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        322,
+        1878,
+        374,
+        1932
+      ]
+    }
+  ],
+  "height": 2612,
+  "image": "C274_D2_P1.jpeg",
+  "width": 3024
+}

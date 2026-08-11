@@ -1,0 +1,86 @@
+{
+  "freeze_version": "ocr-crnn-hand-v2-freeze-1",
+  "frozen_at": "2026-08-10T16:30:00+08:00",
+  "status": "promoted_not_final_tested",
+  "model": {
+    "canonical_path": "runs/ocr_crnn_hand_v2/best.pt",
+    "sha256": "b46ff5f12ecb6f4d833ef4c6589661b295f86dc92f26ae0e8cb50770a224a3c1",
+    "model_version": "crnn-v2-handwritten-1",
+    "architecture": "cnn-bilstm2-ctc",
+    "chars": "0123456789.kmMΩμunpFV AHz-+/",
+    "img_h": 32,
+    "img_w": 160,
+    "normalization_version": "circuit-value-v1",
+    "split_id": "writers-v1-8a412d847eb8",
+    "seed": 42,
+    "best_epoch": 27,
+    "stopped_epoch": 34,
+    "checkpoint_reported_git_commit": "unknown"
+  },
+  "artifacts": {
+    "training_package_sha256": "21247b48055f40473a11680f3883d8428dc2003ec72cc0d28209a642e1f1f0a4",
+    "kaggle_result_zip_sha256": "bf7801ec4ba905ae2b1628f68755979e94a185b7bfd2b1f4b6b31e77d0075fea",
+    "source_config_sha256": "ccd9e9a5ef406b9fcecdfb78969fbbae36848c4f6fe2f0026f616805f14d768c",
+    "run_config_sha256": "96bd03c96ef0c61092032de68c7932d0e514bf751e797ae7cf9b6f79b6c8e650",
+    "validation_manifest_sha256": "2be7e5af7a35556846e47ebe93b956e75b271642ad30fb8ecaa3a8c8ea6130a7",
+    "pipeline_sha256": "473cf9c12e93eb4cc414a3e96827c29b522619eab8cafa3045231723c08ed71a",
+    "runtime_sha256": "c41ed2d6772866bb6f5db2de2fb0ab96bcdda5656171e9f6582afb5cc80efd76"
+  },
+  "source_control": {
+    "training_package_commit": "1226835",
+    "integration_commit": "7d37e6d",
+    "branch": "backup-full-20260802"
+  },
+  "held_out_writer_validation": {
+    "sample_count": 4801,
+    "validation_drafters": [
+      "drafter_3",
+      "drafter_8",
+      "drafter_13",
+      "drafter_18",
+      "drafter_23",
+      "drafter_28"
+    ],
+    "new_model": {
+      "raw_exact": 0.7417204749010623,
+      "normalized_exact": 0.8227452614038742,
+      "raw_cer": 0.1332934847579199,
+      "normalized_cer": 0.09539670339055427,
+      "numeric_exact": 0.8408664861487191,
+      "unit_labeled_count": 1893,
+      "unit_exact": 0.942419440042261,
+      "error_count": 851,
+      "train_and_independent_eval_identical": true
+    },
+    "legacy_machine_model": {
+      "checkpoint_sha256": "aa18660ee3e2ab794db43d9d7491304509c59f17e60d4ad812ddfbd880c87de4",
+      "metrics_file_sha256": "bb716b73284c68605a0dad4809ddb1606d5dfa3c2483ef6d6ac5366f260e2bc9",
+      "normalized_exact": 0.03311810039575089,
+      "normalized_cer": 1.0436416431804594,
+      "numeric_exact": 0.0416579879191835,
+      "unit_exact": 0.10512414157422081,
+      "error_count": 4642
+    }
+  },
+  "promotion_gate": {
+    "normalized_exact_min": 0.8,
+    "normalized_cer_max": 0.1,
+    "must_beat_active_model": true,
+    "passed": true
+  },
+  "backup": {
+    "directory": "runs/ocr_crnn_hand_v2/backups/pre_switch_20260810_b46ff5f1",
+    "legacy_weight": "legacy_machine_best.pt",
+    "returned_weight": "returned_v2_best.pt",
+    "pipeline_before_switch": "unified_pipeline_before_switch.py"
+  },
+  "rollback": {
+    "config": {
+      "ocr_model_path": "runs/ocr_crnn_machine/best.pt"
+    }
+  },
+  "final_42_image_test": {
+    "status": "not_run",
+    "reason": "Await frozen independent ground truth before the single final evaluation."
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "circuit_id": "C01",
+  "title": "单电阻直流回路",
+  "difficulty": "basic",
+  "components": [
+    {
+      "id": "V1",
+      "class_name": "voltage.dc",
+      "value": "5V",
+      "ports": [
+        "+",
+        "-"
+      ],
+      "symbol": "voltage.dc"
+    },
+    {
+      "id": "R1",
+      "class_name": "resistor",
+      "value": "1kΩ",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "ansi_zigzag"
+    },
+    {
+      "id": "GND",
+      "class_name": "gnd",
+      "value": null,
+      "ports": [
+        "GND"
+      ],
+      "symbol": "gnd"
+    }
+  ],
+  "nets": {
+    "N1": [
+      "V1.+",
+      "R1.1"
+    ],
+    "N0": [
+      "R1.2",
+      "V1.-",
+      "GND.GND"
+    ]
+  }
+}

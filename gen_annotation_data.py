@@ -55,9 +55,9 @@ PORT_POSITIONS = {
     "I-AC": [(0.5, 0.0), (0.5, 1.0)],
     "Battery": [(0.5, 0.0), (0.5, 1.0)],
     "GND": [(0.5, 0.0)],
-    "Switch": [(0, 0.5), (1, 0.5)],
+    "Switch": [(0, 0.5), (1, 0.5), (0.5, 0.0)],
     "Speaker": [(0, 0.5), (1, 0.5)],
-    "BJT": [(0.0, 0.5), (0.7, 0.0), (0.7, 1.0)],   # base=left-center, collector=top-right, emitter=bottom-right
+    "BJT": [(0.0, 0.5), (0.7, 0.0), (0.7, 1.0)],  # B, C, E
     "Diac": [(0, 0.5), (1, 0.5)],
     "Variable-Capacitor": [(0, 0.5), (1, 0.5)],
     "Terminal": [(0.5, 0.5)],
@@ -67,8 +67,8 @@ PORT_POSITIONS = {
     "PhotoTransistor": [(0.5, 0.0), (0.5, 1.0)],
     "FET": [(0, 0.5), (0.5, 0.0), (0.5, 1.0)],
     "Relay": [(0, 0.5), (1, 0.5), (0.5, 0.0), (0.5, 1.0)],
-    "Thyristor": [(0, 0.5), (1, 0.5)],
-    "Motor": [(0, 0.5), (1, 0.5)],
+    "Thyristor": [(0, 0.5), (1, 0.5), (0.5, 0.0)],
+    "Motor": [(0, 0.5), (1, 0.5), (0.5, 0.0)],
     "Transformer": [(0, 0.2), (0, 0.8), (1, 0.2), (1, 0.8)],
 }
 
@@ -80,16 +80,16 @@ PORT_LABELS = {
     "Inductor": ["1", "2"],
     "Diode": ["+", "-"],
     "LED": ["+", "-"],
-    "Zener-Diode": ["+", "-"],
+    "Zener-Diode": ["A", "K"],
     "V-DC": ["+", "-"],                   # port[0]=top=+, port[1]=bottom=- (default vertical)
     "V-AC": ["~", "~"],
     "I-DC": ["+", "-"],
     "I-AC": ["~", "~"],
     "Battery": ["+", "-"],                # port[0]=top=+, port[1]=bottom=- (default vertical)
     "GND": ["GND"],
-    "Switch": ["1", "2"],
+    "Switch": ["1", "2", "CTRL"],
     "Speaker": ["1", "2"],
-    "BJT": ["B", "E", "C"],              # port[0]=base-left, port[1]=emitter-topright, port[2]=collector-bottomright
+    "BJT": ["B", "C", "E"],
     "Diac": ["1", "2"],
     "Variable-Capacitor": ["1", "2"],
     "Terminal": ["T"],
@@ -99,8 +99,8 @@ PORT_LABELS = {
     "PhotoTransistor": ["C", "E"],
     "FET": ["G", "S", "D"],
     "Relay": ["C1", "C2", "NO", "COM"],
-    "Thyristor": ["A", "K"],
-    "Motor": ["1", "2"],
+    "Thyristor": ["A", "K", "G"],
+    "Motor": ["M+", "M-", "OUT"],
     "Transformer": ["P1", "P2", "S1", "S2"],
 }
 

@@ -1,0 +1,142 @@
+{
+  "components": [
+    {
+      "conf": 0.9384673833847046,
+      "designator": "V1",
+      "idx": 0,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "V-DC",
+      "ports": [
+        [
+          667,
+          1368
+        ],
+        [
+          667,
+          1735
+        ]
+      ],
+      "raw_name": "voltage.dc",
+      "xyxy": [
+        495,
+        1368,
+        839,
+        1735
+      ]
+    },
+    {
+      "conf": 0.9267176985740662,
+      "designator": "C1",
+      "idx": 1,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Polarized-Capacitor",
+      "ports": [
+        [
+          1483,
+          1474
+        ],
+        [
+          1475,
+          1666
+        ]
+      ],
+      "raw_name": "capacitor.unpolarized",
+      "xyxy": [
+        1322,
+        1474,
+        1629,
+        1666
+      ]
+    },
+    {
+      "conf": 0.9202780723571777,
+      "designator": "L1",
+      "idx": 2,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "LED",
+      "ports": [
+        [
+          2227,
+          1697
+        ],
+        [
+          2225,
+          1879
+        ]
+      ],
+      "raw_name": "diode.light_emitting",
+      "xyxy": [
+        2105,
+        1697,
+        2487,
+        1879
+      ]
+    },
+    {
+      "conf": 0.8951683044433594,
+      "designator": "R1",
+      "idx": 3,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1077,
+          1246
+        ],
+        [
+          1356,
+          1252
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1077,
+        1155,
+        1356,
+        1293
+      ]
+    },
+    {
+      "conf": 0.8816261291503906,
+      "designator": "R2",
+      "idx": 4,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          2224,
+          1353
+        ],
+        [
+          2237,
+          1574
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        2130,
+        1353,
+        2268,
+        1574
+      ]
+    }
+  ],
+  "height": 2671,
+  "image": "C9_D2_P2.jpg",
+  "width": 3024
+}

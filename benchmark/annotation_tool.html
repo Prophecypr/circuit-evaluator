@@ -57,10 +57,12 @@ button:hover{background:#6a4c9e}
       <option value="Inductor">Inductor</option><option value="Diode">Diode</option><option value="LED">LED</option>
       <option value="Zener-Diode">Zener-Diode</option><option value="V-DC">V-DC</option><option value="V-AC">V-AC</option>
       <option value="Battery">Battery</option><option value="BJT">BJT</option><option value="FET">FET</option>
-      <option value="GND">GND</option><option value="Switch">Switch</option><option value="Relay">Relay</option>
+      <option value="Thyristor">Thyristor</option>
+      <option value="GND">GND</option><option value="VCC">VCC</option><option value="Switch">Switch</option><option value="Relay">Relay</option>
       <option value="Transformer">Transformer</option>
       <option value="Op-Amp">Op-Amp</option><option value="IC">IC</option>
       <option value="Speaker">Speaker</option><option value="Motor">Motor</option>
+      <option value="Microphone">Microphone</option>
       <option value="Lamp">Lamp</option><option value="Terminal">Terminal</option>
       <option value="Explanatory">Explanatory</option>
     </select>
@@ -96,17 +98,20 @@ button:hover{background:#6a4c9e}
   <div onclick="doAdd('Zener-Diode')">Zener Diode <span style="color:#aaa">ZD</span></div>
   <div onclick="doAdd('BJT')">BJT <span style="color:#aaa">Q</span></div>
   <div onclick="doAdd('FET')">FET <span style="color:#aaa">Q</span></div>
+  <div onclick="doAdd('Thyristor')">Thyristor <span style="color:#aaa">TH</span></div>
   <div class="cat">电源/接地 Power</div>
   <div onclick="doAdd('V-DC')">DC Voltage <span style="color:#aaa">V</span></div>
   <div onclick="doAdd('V-AC')">AC Voltage <span style="color:#aaa">V</span></div>
   <div onclick="doAdd('Battery')">Battery <span style="color:#aaa">BAT</span></div>
   <div onclick="doAdd('GND')">Ground <span style="color:#aaa">GND</span></div>
+  <div onclick="doAdd('VCC')">VCC <span style="color:#aaa">VCC</span></div>
   <div class="cat">其他 Others</div>
   <div onclick="doAdd('Switch')">Switch <span style="color:#aaa">SW</span></div>
   <div onclick="doAdd('Relay')">Relay <span style="color:#aaa">RL</span></div>
   <div onclick="doAdd('Op-Amp')">Op-Amp <span style="color:#aaa">U</span></div>
   <div onclick="doAdd('Speaker')">Speaker <span style="color:#aaa">SP</span></div>
   <div onclick="doAdd('Motor')">Motor <span style="color:#aaa">M</span></div>
+  <div onclick="doAdd('Microphone')">Microphone <span style="color:#aaa">MIC</span></div>
   <div onclick="doAdd('Lamp')">Lamp <span style="color:#aaa">LMP</span></div>
   <div onclick="doAdd('Terminal')">Terminal <span style="color:#aaa">T</span></div>
 </div>
@@ -166,10 +171,10 @@ function refreshMoveBtns(){
 function onNameChange(){
   if(!edC)return;
   let old=edC.name, n=document.getElementById('ed_name').value;
-  let pre={'Resistor':'R','Potentiometer':'R','Capacitor':'C','Polarized-Capacitor':'C','Inductor':'L','Diode':'D','LED':'L','Zener-Diode':'ZD','V-DC':'V','V-AC':'V','I-DC':'I','I-AC':'I','Battery':'BAT','BJT':'Q','FET':'Q','GND':'GND','Switch':'SW','Relay':'RL','Transformer':'T','Op-Amp':'U','IC':'U','NE555':'U','Speaker':'SP','Motor':'M','Lamp':'LMP','Terminal':'T','Explanatory':'X'};
+  let pre={'Resistor':'R','Potentiometer':'R','Capacitor':'C','Polarized-Capacitor':'C','Inductor':'L','Diode':'D','LED':'L','Zener-Diode':'ZD','V-DC':'V','V-AC':'V','I-DC':'I','I-AC':'I','Battery':'BAT','BJT':'Q','FET':'Q','Thyristor':'TH','GND':'GND','VCC':'VCC','Switch':'SW','Relay':'RL','Transformer':'T','Op-Amp':'U','IC':'U','NE555':'U','Speaker':'SP','Motor':'M','Microphone':'MIC','Lamp':'LMP','Terminal':'T','Explanatory':'X'};
   let np=pre[n]||n[0];
   let des=document.getElementById('ed_des').value;
-  let oldPre={'Resistor':'R','Potentiometer':'R','Capacitor':'C','Polarized-Capacitor':'C','Inductor':'L','Diode':'D','LED':'L','Zener-Diode':'ZD','V-DC':'V','V-AC':'V','I-DC':'I','I-AC':'I','Battery':'BAT','BJT':'Q','FET':'Q','GND':'GND','Switch':'SW','Relay':'RL','Transformer':'T','Op-Amp':'U','IC':'U','NE555':'U'};
+  let oldPre={'Resistor':'R','Potentiometer':'R','Capacitor':'C','Polarized-Capacitor':'C','Inductor':'L','Diode':'D','LED':'L','Zener-Diode':'ZD','V-DC':'V','V-AC':'V','I-DC':'I','I-AC':'I','Battery':'BAT','BJT':'Q','FET':'Q','Thyristor':'TH','GND':'GND','Switch':'SW','Relay':'RL','Transformer':'T','Op-Amp':'U','IC':'U','NE555':'U','Speaker':'SP','Microphone':'MIC'};
   let op=oldPre[old]||old[0];
   if(des.startsWith(op)) des=np+des.slice(op.length);
   document.getElementById('ed_des').value=des;
@@ -200,14 +205,26 @@ function commitEdit(){
   edC.designator=document.getElementById('ed_des').value;
   let nm=edC.name;
   let defLabels={'Resistor':['1','2'],'Capacitor':['1','2'],'Polarized-Capacitor':['+','-'],
-    'Inductor':['1','2'],'Diode':['+','-'],'LED':['+','-'],'Zener-Diode':['+','-'],
+    'Inductor':['1','2'],'Diode':['+','-'],'LED':['+','-'],'Zener-Diode':['A','K'],
     'V-DC':['+','-'],'V-AC':['~','~'],'I-DC':['+','-'],'I-AC':['~','~'],
-    'Battery':['+','-'],'GND':['GND'],'Switch':['1','2'],'Speaker':['1','2'],
-    'BJT':['B','E','C'],'FET':['G','S','D'],'Motor':['+','-'],
-    'Relay':['C1','C2','NO','COM'],'Transformer':['P1','P2','S1','S2'],
+    'Battery':['+','-'],'GND':['GND'],'VCC':['VCC'],'Switch':['1','2','CTRL'],'Speaker':['1','2'],'Microphone':['+','-'],
+    'BJT':['B','C','E'],'FET':['G','S','D'],'Thyristor':['A','K','G'],'Motor':['M+','M-','OUT'],
+    'Relay':['C1','C2','NO','COM'],'Transformer':['P1','P2','S1','S2'],'Terminal':['T'],
     'Op-Amp':['-','+','OUT','V+','V-']};
   let dl=defLabels[nm];
-  if(dl&&dl.length===edC.ports.length) edC.labels=[...dl];
+
+  // Rebuild ports when label count changed (e.g. GND 1→V-DC 2)
+  if(dl&&dl.length!==edC.ports.length){
+    let[x1,y1,x2,y2]=edC.xyxy; let w=x2-x1,h=y2-y1;
+    edC.ports=dl.map((l,pi)=>{
+      if(dl.length===1) return [x1+Math.round(0.5*w), y1+Math.round(0.0*h)];
+      if(dl.length===2) return [x1+Math.round(pi*w), y1+Math.round(0.5*h)];
+      if(pi===0) return [x1, y1+Math.round(0.5*h)];
+      if(pi===1) return [x1+Math.round(0.7*w), y1];
+      return [x1+Math.round(0.7*w), y1+h];
+    });
+  }
+  if(dl) edC.labels=[...dl];
   refreshMoveBtns();
   document.getElementById('status').textContent=edC.designator+' updated'; draw(); upd();
 }
@@ -310,15 +327,15 @@ function doAdd(nm){
   let x=ctxMenuX, y=ctxMenuY;
   let sz=80;
   let defLabels={'Resistor':['1','2'],'Capacitor':['1','2'],'Polarized-Capacitor':['+','-'],
-    'Inductor':['1','2'],'Diode':['+','-'],'LED':['+','-'],'Zener-Diode':['+','-'],
-    'V-DC':['+','-'],'V-AC':['~','~'],'Battery':['+','-'],'GND':['GND'],
-    'Switch':['1','2'],'Speaker':['1','2'],'BJT':['B','E','C'],'FET':['G','S','D'],
-    'Motor':['+','-'],'Relay':['C1','C2','NO','COM'],'Transformer':['P1','P2','S1','S2'],
-    'Op-Amp':['-','+','OUT','V+','V-'],'IC':['-','+','OUT'],'Potentiometer':['1','2','W']};
+    'Inductor':['1','2'],'Diode':['+','-'],'LED':['+','-'],'Zener-Diode':['A','K'],
+    'V-DC':['+','-'],'V-AC':['~','~'],'Battery':['+','-'],'GND':['GND'],'VCC':['VCC'],
+    'Switch':['1','2','CTRL'],'Speaker':['1','2'],'Microphone':['+','-'],'BJT':['B','C','E'],'FET':['G','S','D'],'Thyristor':['A','K','G'],
+    'Motor':['M+','M-','OUT'],'Relay':['C1','C2','NO','COM'],'Transformer':['P1','P2','S1','S2'],
+    'Op-Amp':['-','+','OUT','V+','V-'],'IC':['-','+','OUT'],'Potentiometer':['1','2','W'],'Terminal':['T']};
   let pre={'Resistor':'R','Potentiometer':'R','Capacitor':'C','Polarized-Capacitor':'C',
     'Inductor':'L','Diode':'D','LED':'L','Zener-Diode':'ZD','V-DC':'V','V-AC':'V',
-    'Battery':'BAT','BJT':'Q','FET':'Q','GND':'GND','Switch':'SW','Relay':'RL',
-    'Transformer':'T','Op-Amp':'U','IC':'U','Speaker':'SP','Motor':'M','Lamp':'LMP','Terminal':'T'};
+    'Battery':'BAT','BJT':'Q','FET':'Q','Thyristor':'TH','GND':'GND','VCC':'VCC','Switch':'SW','Relay':'RL',
+    'Transformer':'T','Op-Amp':'U','IC':'U','Speaker':'SP','Motor':'M','Microphone':'MIC','Lamp':'LMP','Terminal':'T'};
   let dl=defLabels[nm]||['1','2'];
   let ports=[];
   for(let pi=0;pi<dl.length;pi++){
@@ -326,7 +343,8 @@ function doAdd(nm){
     if(dl.length===1){rx=0.5;ry=0;}
     else if(dl.length===2){rx=pi;ry=0.5;}
     else if(dl.length===3){
-      if(pi===0){rx=0;ry=0.5;}else if(pi===1){rx=0.7;ry=0;}else{rx=0.7;ry=1;}
+      if(nm==='Motor'||nm==='Thyristor'||nm==='Switch'){if(pi===0){rx=0;ry=0.5;}else if(pi===1){rx=1;ry=0.5;}else{rx=0.5;ry=0;}}
+      else{if(pi===0){rx=0;ry=0.5;}else if(pi===1){rx=0.7;ry=0;}else{rx=0.7;ry=1;}}
     }
     ports.push([x+Math.round(rx*sz), y+Math.round(ry*sz)]);
   }

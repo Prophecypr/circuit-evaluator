@@ -1,0 +1,454 @@
+{
+  "components": [
+    {
+      "conf": 0.9764354825019836,
+      "designator": "V1",
+      "idx": 0,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "V-DC",
+      "ports": [
+        [
+          629,
+          1250
+        ],
+        [
+          629,
+          1608
+        ]
+      ],
+      "raw_name": "voltage.dc",
+      "xyxy": [
+        475,
+        1250,
+        784,
+        1608
+      ]
+    },
+    {
+      "conf": 0.964921772480011,
+      "designator": "L1",
+      "idx": 1,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "LED",
+      "ports": [
+        [
+          3770,
+          1525
+        ],
+        [
+          3759,
+          1671
+        ]
+      ],
+      "raw_name": "diode.light_emitting",
+      "xyxy": [
+        3692,
+        1525,
+        3931,
+        1671
+      ]
+    },
+    {
+      "conf": 0.9578249454498291,
+      "designator": "Q1",
+      "idx": 2,
+      "labels": [
+        "B",
+        "E",
+        "C"
+      ],
+      "name": "BJT",
+      "ports": [
+        [
+          3297,
+          1656
+        ],
+        [
+          3558,
+          1803
+        ],
+        [
+          3555,
+          1462
+        ]
+      ],
+      "raw_name": "transistor.bjt",
+      "xyxy": [
+        3297,
+        1462,
+        3611,
+        1803
+      ]
+    },
+    {
+      "conf": 0.9576900005340576,
+      "designator": "Q2",
+      "idx": 3,
+      "labels": [
+        "B",
+        "E",
+        "C"
+      ],
+      "name": "BJT",
+      "ports": [
+        [
+          2259,
+          1713
+        ],
+        [
+          2503,
+          1860
+        ],
+        [
+          2543,
+          1491
+        ]
+      ],
+      "raw_name": "transistor.bjt",
+      "xyxy": [
+        2259,
+        1491,
+        2603,
+        1860
+      ]
+    },
+    {
+      "conf": 0.9499167799949646,
+      "designator": "Q3",
+      "idx": 4,
+      "labels": [
+        "B",
+        "E",
+        "C"
+      ],
+      "name": "BJT",
+      "ports": [
+        [
+          1054,
+          1765
+        ],
+        [
+          1337,
+          1940
+        ],
+        [
+          1422,
+          1558
+        ]
+      ],
+      "raw_name": "transistor.bjt",
+      "xyxy": [
+        1054,
+        1536,
+        1422,
+        1940
+      ]
+    },
+    {
+      "conf": 0.9366232752799988,
+      "designator": "L2",
+      "idx": 5,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "LED",
+      "ports": [
+        [
+          1632,
+          1637
+        ],
+        [
+          1637,
+          1829
+        ]
+      ],
+      "raw_name": "diode.light_emitting",
+      "xyxy": [
+        1559,
+        1637,
+        1817,
+        1829
+      ]
+    },
+    {
+      "conf": 0.9322841763496399,
+      "designator": "L3",
+      "idx": 6,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "LED",
+      "ports": [
+        [
+          2729,
+          1573
+        ],
+        [
+          2727,
+          1762
+        ]
+      ],
+      "raw_name": "diode.light_emitting",
+      "xyxy": [
+        2649,
+        1573,
+        2892,
+        1762
+      ]
+    },
+    {
+      "conf": 0.8898721933364868,
+      "designator": "R1",
+      "idx": 7,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          2241,
+          821
+        ],
+        [
+          2241,
+          1063
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        2184,
+        821,
+        2299,
+        1063
+      ]
+    },
+    {
+      "conf": 0.867668092250824,
+      "designator": "C1",
+      "idx": 8,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Polarized-Capacitor",
+      "ports": [
+        [
+          2941,
+          1439
+        ],
+        [
+          3064,
+          1439
+        ]
+      ],
+      "raw_name": "capacitor.polarized",
+      "xyxy": [
+        2941,
+        1376,
+        3064,
+        1503
+      ]
+    },
+    {
+      "conf": 0.8664790391921997,
+      "designator": "R2",
+      "idx": 9,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1466,
+          836
+        ],
+        [
+          1466,
+          1062
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1400,
+        836,
+        1533,
+        1062
+      ]
+    },
+    {
+      "conf": 0.8428750038146973,
+      "designator": "R3",
+      "idx": 10,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1004,
+          873
+        ],
+        [
+          1004,
+          1117
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        943,
+        873,
+        1065,
+        1117
+      ]
+    },
+    {
+      "conf": 0.8294827342033386,
+      "designator": "R4",
+      "idx": 11,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          3238,
+          812
+        ],
+        [
+          3238,
+          1051
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        3187,
+        812,
+        3289,
+        1051
+      ]
+    },
+    {
+      "conf": 0.8165839910507202,
+      "designator": "R5",
+      "idx": 12,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          3532,
+          955
+        ],
+        [
+          3532,
+          1201
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        3473,
+        955,
+        3591,
+        1201
+      ]
+    },
+    {
+      "conf": 0.807491660118103,
+      "designator": "R6",
+      "idx": 13,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          2550,
+          905
+        ],
+        [
+          2528,
+          1166
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        2475,
+        905,
+        2581,
+        1166
+      ]
+    },
+    {
+      "conf": 0.7880397439002991,
+      "designator": "C2",
+      "idx": 14,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Polarized-Capacitor",
+      "ports": [
+        [
+          1902,
+          1505
+        ],
+        [
+          2016,
+          1505
+        ]
+      ],
+      "raw_name": "capacitor.polarized",
+      "xyxy": [
+        1902,
+        1427,
+        2016,
+        1584
+      ]
+    },
+    {
+      "conf": 0.5894599556922913,
+      "designator": "C3",
+      "idx": 15,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Polarized-Capacitor",
+      "ports": [
+        [
+          2094,
+          2145
+        ],
+        [
+          1936,
+          2145
+        ]
+      ],
+      "raw_name": "capacitor.polarized",
+      "xyxy": [
+        1936,
+        2048,
+        2094,
+        2243
+      ]
+    }
+  ],
+  "height": 3120,
+  "image": "C23_D2_P1.jpg",
+  "width": 4160
+}

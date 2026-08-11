@@ -1,0 +1,73 @@
+{
+  "circuit_id": "C08",
+  "title": "稳压二极管并联稳压",
+  "difficulty": "medium",
+  "components": [
+    {
+      "id": "V1",
+      "class_name": "voltage.dc",
+      "value": "12V",
+      "ports": [
+        "+",
+        "-"
+      ],
+      "symbol": "voltage.dc"
+    },
+    {
+      "id": "R1",
+      "class_name": "resistor",
+      "value": "1kΩ",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "ansi_zigzag"
+    },
+    {
+      "id": "ZD1",
+      "class_name": "diode.zener",
+      "value": null,
+      "ports": [
+        "A",
+        "K"
+      ],
+      "symbol": "diode.zener"
+    },
+    {
+      "id": "R2",
+      "class_name": "resistor",
+      "value": "2.2kΩ",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "ansi_zigzag"
+    },
+    {
+      "id": "GND",
+      "class_name": "gnd",
+      "value": null,
+      "ports": [
+        "GND"
+      ],
+      "symbol": "gnd"
+    }
+  ],
+  "nets": {
+    "N1": [
+      "V1.+",
+      "R1.1"
+    ],
+    "N2": [
+      "R1.2",
+      "ZD1.K",
+      "R2.1"
+    ],
+    "N0": [
+      "ZD1.A",
+      "R2.2",
+      "V1.-",
+      "GND.GND"
+    ]
+  }
+}

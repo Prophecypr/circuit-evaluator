@@ -1,0 +1,59 @@
+{
+  "circuit_id": "C03",
+  "title": "双电阻并联",
+  "difficulty": "basic",
+  "components": [
+    {
+      "id": "V1",
+      "class_name": "voltage.dc",
+      "value": "5V",
+      "ports": [
+        "+",
+        "-"
+      ],
+      "symbol": "voltage.dc"
+    },
+    {
+      "id": "R1",
+      "class_name": "resistor",
+      "value": "1kΩ",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "ansi_zigzag"
+    },
+    {
+      "id": "R2",
+      "class_name": "resistor",
+      "value": "10kΩ",
+      "ports": [
+        "1",
+        "2"
+      ],
+      "symbol": "ansi_zigzag"
+    },
+    {
+      "id": "GND",
+      "class_name": "gnd",
+      "value": null,
+      "ports": [
+        "GND"
+      ],
+      "symbol": "gnd"
+    }
+  ],
+  "nets": {
+    "N1": [
+      "V1.+",
+      "R1.1",
+      "R2.1"
+    ],
+    "N0": [
+      "V1.-",
+      "R1.2",
+      "R2.2",
+      "GND.GND"
+    ]
+  }
+}

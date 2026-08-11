@@ -1,0 +1,206 @@
+{
+  "image": "C158_D1_P1.jpg",
+  "width": 2898,
+  "height": 2324,
+  "components": [
+    {
+      "idx": 0,
+      "name": "Potentiometer",
+      "raw_name": "resistor.adjustable",
+      "designator": "R1",
+      "xyxy": [
+        1379,
+        874,
+        1601,
+        1164
+      ],
+      "ports": [
+        [
+          1453,
+          874
+        ],
+        [
+          1453,
+          1164
+        ],
+        [
+          1601,
+          1010
+        ]
+      ],
+      "labels": [
+        "1",
+        "2",
+        "W"
+      ],
+      "conf": 0.9449957013130188
+    },
+    {
+      "idx": 1,
+      "name": "Resistor",
+      "raw_name": "resistor",
+      "designator": "R2",
+      "xyxy": [
+        1136,
+        348,
+        1317,
+        654
+      ],
+      "ports": [
+        [
+          1199,
+          348
+        ],
+        [
+          1251,
+          654
+        ]
+      ],
+      "labels": [
+        "1",
+        "2"
+      ],
+      "conf": 0.9345734715461731
+    },
+    {
+      "idx": 2,
+      "name": "LED",
+      "raw_name": "diode.light_emitting",
+      "designator": "L1",
+      "xyxy": [
+        1986,
+        105,
+        2286,
+        327
+      ],
+      "ports": [
+        [
+          1986,
+          256
+        ],
+        [
+          2286,
+          238
+        ]
+      ],
+      "labels": [
+        "+",
+        "-"
+      ],
+      "conf": 0.9264159202575684
+    },
+    {
+      "idx": 3,
+      "name": "Diode",
+      "raw_name": "diode",
+      "designator": "D1",
+      "xyxy": [
+        932,
+        918,
+        1132,
+        1036
+      ],
+      "ports": [
+        [
+          1024,
+          918
+        ],
+        [
+          1035,
+          1036
+        ]
+      ],
+      "labels": [
+        "+",
+        "-"
+      ],
+      "conf": 0.9233198165893555
+    },
+    {
+      "idx": 4,
+      "name": "BJT",
+      "raw_name": "transistor.bjt",
+      "designator": "Q1",
+      "xyxy": [
+        2230,
+        799,
+        2492,
+        1117
+      ],
+      "ports": [
+        [
+          2230,
+          966
+        ],
+        [
+          2475,
+          1117
+        ],
+        [
+          2478,
+          799
+        ]
+      ],
+      "labels": [
+        "B",
+        "E",
+        "C"
+      ],
+      "conf": 0.8702343106269836
+    },
+    {
+      "idx": 5,
+      "name": "Resistor",
+      "raw_name": "resistor",
+      "designator": "R3",
+      "xyxy": [
+        1446,
+        191,
+        1794,
+        310
+      ],
+      "ports": [
+        [
+          1446,
+          232
+        ],
+        [
+          1794,
+          259
+        ]
+      ],
+      "labels": [
+        "1",
+        "2"
+      ],
+      "conf": 0.8411515355110168
+    },
+    {
+      "idx": 6,
+      "name": "Battery",
+      "raw_name": "voltage.battery",
+      "designator": "BAT1",
+      "xyxy": [
+        248,
+        494,
+        537,
+        966
+      ],
+      "ports": [
+        [
+          425,
+          494
+        ],
+        [
+          419,
+          966
+        ]
+      ],
+      "labels": [
+        "+",
+        "-"
+      ],
+      "conf": 0.8368150591850281
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 Manual fixes stored in fixed/ and merged on load.
 Run: python benchmark/server.py
 """
-import os, json
+import copy, os, json
 from pathlib import Path
 from flask import Flask, send_file, jsonify, request
 
@@ -14,6 +14,40 @@ FIX_DIR = ROOT / "fixed"
 app = Flask(__name__, static_folder=str(ROOT))
 RESULT_DIR.mkdir(exist_ok=True)
 FIX_DIR.mkdir(exist_ok=True)
+
+# ---- Auto-upgrade port definitions ----
+# When loading old fixed files, components with fewer ports than the current
+# definition get upgraded automatically (missing ports appended).
+UPGRADE_PORTS = {
+    "Motor":       [(0, 0.5), (1, 0.5), (0.5, 0.0)],
+    "Thyristor":   [(0, 0.5), (1, 0.5), (0.5, 0.0)],
+    "Switch":      [(0, 0.5), (1, 0.5), (0.5, 0.0)],
+    "Microphone":  [(0, 0.5), (1, 0.5)],
+    "microphone":  [(0, 0.5), (1, 0.5)],
+}
+UPGRADE_LABELS = {
+    "Motor":       ["M+", "M-", "OUT"],
+    "Thyristor":   ["A", "K", "G"],
+    "Switch":      ["1", "2", "CTRL"],
+    "Microphone":  ["+", "-"],
+    "microphone":  ["+", "-"],
+}
+
+def _upgrade_component(c):
+    """Add missing ports/labels for components upgraded from old definitions."""
+    name = c.get("name", "")
+    if name in UPGRADE_PORTS:
+        expected_ports = UPGRADE_PORTS[name]
+        expected_labels = UPGRADE_LABELS[name]
+        if len(c.get("ports", [])) < len(expected_ports):
+            x1, y1, x2, y2 = c.get("xyxy", [0, 0, 100, 100])
+            w, h = x2 - x1, y2 - y1
+            while len(c["ports"]) < len(expected_ports):
+                pi = len(c["ports"])
+                rx, ry = expected_ports[pi]
+                c["ports"].append([int(x1 + rx * w), int(y1 + ry * h)])
+            c["labels"] = list(expected_labels)
+    return c
 
 
 @app.route("/")
@@ -35,10 +69,16 @@ def serve_detection(filename):
     # Check fixed/ first for manual overrides, then detections/
     fix = FIX_DIR / filename
     if fix.is_file():
-        return send_file(str(fix))
+        data = json.loads(fix.read_text(encoding="utf-8"))
+        for c in data.get("components", []):
+            _upgrade_component(c)
+        return jsonify(data)
     det = DET_DIR / filename
     if det.is_file():
-        return send_file(str(det))
+        data = json.loads(det.read_text(encoding="utf-8"))
+        for c in data.get("components", []):
+            _upgrade_component(c)
+        return jsonify(data)
     return "Not found", 404
 
 

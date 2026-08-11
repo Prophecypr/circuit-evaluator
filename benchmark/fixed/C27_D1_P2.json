@@ -1,0 +1,431 @@
+{
+  "components": [
+    {
+      "conf": 0.9537010192871094,
+      "designator": "GND1",
+      "idx": 0,
+      "labels": [
+        "GND"
+      ],
+      "name": "GND",
+      "ports": [
+        [
+          1246,
+          643
+        ]
+      ],
+      "raw_name": "gnd",
+      "xyxy": [
+        1182,
+        643,
+        1307,
+        760
+      ]
+    },
+    {
+      "conf": 0.9398638010025024,
+      "designator": "GND2",
+      "idx": 1,
+      "labels": [
+        "GND"
+      ],
+      "name": "GND",
+      "ports": [
+        [
+          1451,
+          610
+        ]
+      ],
+      "raw_name": "gnd",
+      "xyxy": [
+        1406,
+        610,
+        1516,
+        730
+      ]
+    },
+    {
+      "conf": 0.9212451577186584,
+      "designator": "GND3",
+      "idx": 2,
+      "labels": [
+        "GND"
+      ],
+      "name": "GND",
+      "ports": [
+        [
+          340,
+          648
+        ]
+      ],
+      "raw_name": "gnd",
+      "xyxy": [
+        283,
+        648,
+        398,
+        731
+      ]
+    },
+    {
+      "conf": 0.89840167760849,
+      "designator": "R1",
+      "idx": 3,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          349,
+          390
+        ],
+        [
+          337,
+          534
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        312,
+        390,
+        363,
+        534
+      ]
+    },
+    {
+      "conf": 0.893756091594696,
+      "designator": "GND4",
+      "idx": 4,
+      "labels": [
+        "GND"
+      ],
+      "name": "GND",
+      "ports": [
+        [
+          795,
+          651
+        ]
+      ],
+      "raw_name": "gnd",
+      "xyxy": [
+        735,
+        651,
+        870,
+        793
+      ]
+    },
+    {
+      "conf": 0.8937413692474365,
+      "designator": "C1",
+      "idx": 5,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Capacitor",
+      "ports": [
+        [
+          158,
+          325
+        ],
+        [
+          215,
+          328
+        ]
+      ],
+      "raw_name": "capacitor.unpolarized",
+      "xyxy": [
+        158,
+        293,
+        215,
+        364
+      ]
+    },
+    {
+      "conf": 0.8923635482788086,
+      "designator": "GND5",
+      "idx": 6,
+      "labels": [
+        "GND"
+      ],
+      "name": "GND",
+      "ports": [
+        [
+          624,
+          651
+        ]
+      ],
+      "raw_name": "gnd",
+      "xyxy": [
+        553,
+        651,
+        681,
+        768
+      ]
+    },
+    {
+      "conf": 0.8885368704795837,
+      "designator": "D1",
+      "idx": 7,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Diode",
+      "ports": [
+        [
+          453,
+          327
+        ],
+        [
+          514,
+          327
+        ]
+      ],
+      "raw_name": "diode",
+      "xyxy": [
+        453,
+        291,
+        514,
+        364
+      ]
+    },
+    {
+      "conf": 0.8405275940895081,
+      "designator": "R2",
+      "idx": 8,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          620,
+          388
+        ],
+        [
+          618,
+          514
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        572,
+        388,
+        626,
+        514
+      ]
+    },
+    {
+      "conf": 0.8398634195327759,
+      "designator": "C2",
+      "idx": 9,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Capacitor",
+      "ports": [
+        [
+          1236,
+          407
+        ],
+        [
+          1237,
+          460
+        ]
+      ],
+      "raw_name": "capacitor.unpolarized",
+      "xyxy": [
+        1171,
+        407,
+        1283,
+        460
+      ]
+    },
+    {
+      "conf": 0.8385689854621887,
+      "designator": "C3",
+      "idx": 10,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Capacitor",
+      "ports": [
+        [
+          797,
+          430
+        ],
+        [
+          798,
+          496
+        ]
+      ],
+      "raw_name": "capacitor.unpolarized",
+      "xyxy": [
+        741,
+        430,
+        850,
+        496
+      ]
+    },
+    {
+      "conf": 0.8305379152297974,
+      "designator": "R3",
+      "idx": 11,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1404,
+          63
+        ],
+        [
+          1404,
+          130
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1386,
+        63,
+        1422,
+        130
+      ]
+    },
+    {
+      "conf": 0.8175572752952576,
+      "designator": "R4",
+      "idx": 12,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          931,
+          323
+        ],
+        [
+          1079,
+          330
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        931,
+        305,
+        1079,
+        342
+      ]
+    },
+    {
+      "conf": 0.8170475959777832,
+      "designator": "Q1",
+      "idx": 13,
+      "labels": [
+        "B",
+        "E",
+        "C"
+      ],
+      "name": "BJT",
+      "ports": [
+        [
+          1373,
+          324
+        ],
+        [
+          1436,
+          378
+        ],
+        [
+          1424,
+          271
+        ]
+      ],
+      "raw_name": "transistor.bjt",
+      "xyxy": [
+        1373,
+        271,
+        1446,
+        378
+      ]
+    },
+    {
+      "conf": 0.6850430965423584,
+      "designator": "T1",
+      "idx": 14,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          25,
+          163
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        8,
+        146,
+        42,
+        181
+      ]
+    },
+    {
+      "conf": 0.6623854041099548,
+      "designator": "T2",
+      "idx": 15,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          1549,
+          181
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        1532,
+        167,
+        1566,
+        195
+      ]
+    },
+    {
+      "conf": 0.6255562901496887,
+      "designator": "VCC1",
+      "idx": 16,
+      "labels": [
+        "VCC"
+      ],
+      "name": "VCC",
+      "ports": [
+        [
+          1408,
+          37
+        ]
+      ],
+      "raw_name": "gnd",
+      "xyxy": [
+        1350,
+        9,
+        1458,
+        37
+      ]
+    }
+  ],
+  "height": 794,
+  "image": "C27_D1_P2.jpg",
+  "width": 1571
+}

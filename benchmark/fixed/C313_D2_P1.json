@@ -1,0 +1,262 @@
+{
+  "components": [
+    {
+      "conf": 0.9736594557762146,
+      "designator": "Q1",
+      "idx": 0,
+      "labels": [
+        "B",
+        "E",
+        "C"
+      ],
+      "name": "BJT",
+      "ports": [
+        [
+          1014,
+          1037
+        ],
+        [
+          1201,
+          1091
+        ],
+        [
+          1201,
+          963
+        ]
+      ],
+      "raw_name": "transistor.bjt",
+      "xyxy": [
+        1014,
+        933,
+        1201,
+        1130
+      ]
+    },
+    {
+      "conf": 0.9415619373321533,
+      "designator": "GND1",
+      "idx": 1,
+      "labels": [
+        "GND"
+      ],
+      "name": "GND",
+      "ports": [
+        [
+          907,
+          1609
+        ]
+      ],
+      "raw_name": "gnd",
+      "xyxy": [
+        838,
+        1609,
+        992,
+        1689
+      ]
+    },
+    {
+      "conf": 0.937440037727356,
+      "designator": "GND2",
+      "idx": 2,
+      "labels": [
+        "GND"
+      ],
+      "name": "GND",
+      "ports": [
+        [
+          592,
+          1617
+        ]
+      ],
+      "raw_name": "gnd",
+      "xyxy": [
+        522,
+        1617,
+        652,
+        1685
+      ]
+    },
+    {
+      "conf": 0.9178969860076904,
+      "designator": "D1",
+      "idx": 3,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Diode",
+      "ports": [
+        [
+          1273,
+          713
+        ],
+        [
+          1289,
+          796
+        ]
+      ],
+      "raw_name": "diode",
+      "xyxy": [
+        1225,
+        713,
+        1340,
+        796
+      ]
+    },
+    {
+      "conf": 0.9017050266265869,
+      "designator": "R1",
+      "idx": 4,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          896,
+          1137
+        ],
+        [
+          908,
+          1327
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        852,
+        1137,
+        933,
+        1327
+      ]
+    },
+    {
+      "conf": 0.8910841345787048,
+      "designator": "D2",
+      "idx": 5,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Diode",
+      "ports": [
+        [
+          894,
+          939
+        ],
+        [
+          895,
+          833
+        ]
+      ],
+      "raw_name": "diode",
+      "xyxy": [
+        842,
+        833,
+        955,
+        939
+      ]
+    },
+    {
+      "conf": 0.8695573806762695,
+      "designator": "R2",
+      "idx": 6,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          889,
+          543
+        ],
+        [
+          893,
+          720
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        850,
+        543,
+        940,
+        720
+      ]
+    },
+    {
+      "conf": 0.8676512241363525,
+      "designator": "GND3",
+      "idx": 7,
+      "labels": [
+        "GND"
+      ],
+      "name": "GND",
+      "ports": [
+        [
+          1445,
+          1218
+        ]
+      ],
+      "raw_name": "gnd",
+      "xyxy": [
+        1393,
+        1218,
+        1515,
+        1294
+      ]
+    },
+    {
+      "conf": 0.8585116267204285,
+      "designator": "R3",
+      "idx": 8,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1282,
+          507
+        ],
+        [
+          1282,
+          677
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1240,
+        507,
+        1324,
+        677
+      ]
+    },
+    {
+      "conf": 0.8281153440475464,
+      "designator": "T1",
+      "idx": 9,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          649,
+          463
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        618,
+        433,
+        681,
+        494
+      ]
+    }
+  ],
+  "height": 2278,
+  "image": "C313_D2_P1.jpg",
+  "width": 1907
+}

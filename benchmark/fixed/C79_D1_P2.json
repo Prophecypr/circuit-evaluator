@@ -1,0 +1,233 @@
+{
+  "components": [
+    {
+      "conf": 0.9672558903694153,
+      "designator": "R1",
+      "idx": 0,
+      "labels": [
+        "1",
+        "2",
+        "W"
+      ],
+      "name": "Potentiometer",
+      "ports": [
+        [
+          1081,
+          589
+        ],
+        [
+          1234,
+          589
+        ],
+        [
+          1164,
+          629
+        ]
+      ],
+      "raw_name": "resistor.adjustable",
+      "xyxy": [
+        1081,
+        549,
+        1234,
+        629
+      ]
+    },
+    {
+      "conf": 0.9067465662956238,
+      "designator": "Q1",
+      "idx": 1,
+      "labels": [
+        "B",
+        "E",
+        "C"
+      ],
+      "name": "BJT",
+      "ports": [
+        [
+          312,
+          464
+        ],
+        [
+          252,
+          407
+        ],
+        [
+          256,
+          529
+        ]
+      ],
+      "raw_name": "transistor.bjt",
+      "xyxy": [
+        181,
+        407,
+        312,
+        529
+      ]
+    },
+    {
+      "conf": 0.8960288763046265,
+      "designator": "R2",
+      "idx": 2,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          521,
+          580
+        ],
+        [
+          521,
+          712
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        489,
+        580,
+        554,
+        712
+      ]
+    },
+    {
+      "conf": 0.8905941843986511,
+      "designator": "R3",
+      "idx": 3,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          807,
+          445
+        ],
+        [
+          952,
+          445
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        807,
+        416,
+        952,
+        475
+      ]
+    },
+    {
+      "conf": 0.8876623511314392,
+      "designator": "R4",
+      "idx": 4,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1304,
+          114
+        ],
+        [
+          1304,
+          218
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1276,
+        114,
+        1332,
+        218
+      ]
+    },
+    {
+      "conf": 0.8471725583076477,
+      "designator": "R5",
+      "idx": 5,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          324,
+          258
+        ],
+        [
+          442,
+          258
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        324,
+        228,
+        442,
+        289
+      ]
+    },
+    {
+      "conf": 0.827602207660675,
+      "designator": "C1",
+      "idx": 6,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Polarized-Capacitor",
+      "ports": [
+        [
+          661,
+          384
+        ],
+        [
+          658,
+          298
+        ]
+      ],
+      "raw_name": "capacitor.polarized",
+      "xyxy": [
+        618,
+        298,
+        691,
+        384
+      ]
+    },
+    {
+      "conf": 0.7926255464553833,
+      "designator": "C2",
+      "idx": 7,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Capacitor",
+      "ports": [
+        [
+          1023,
+          192
+        ],
+        [
+          1018,
+          143
+        ]
+      ],
+      "raw_name": "capacitor.unpolarized",
+      "xyxy": [
+        986,
+        143,
+        1058,
+        192
+      ]
+    }
+  ],
+  "height": 1152,
+  "image": "C79_D1_P2.jpg",
+  "width": 1536
+}

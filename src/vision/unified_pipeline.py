@@ -15,7 +15,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from ultralytics import YOLO
 from src.llm import ask
 import torch
-from src.vision.train_ocr import load_trained_model, predict as crnn_predict
+from src.vision.ocr_v2.runtime import load_ocr_runtime
+from src.vision.wiring_graph import (
+    WiringTrace,
+    accept_p2j_candidate,
+    build_trace_anchors,
+    classify_connection_detection,
+    parse_trace_anchor_id,
+    strict_jj_decision,
+    trace_port_to_anchor,
+)
 import pytesseract
 pytesseract.pytesseract.tesseract_cmd = r"E:\Tesseract-OCR\tesseract.exe"
 
@@ -28,7 +37,7 @@ MODELS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.pat
 CGH_SKIP = {"crossover", "probe.current", "probe.voltage"}
 CGH_CONF_THRESH = 0.40
 JUNCTION_CONF = 0.10
-PORT_JUNCTION_RADIUS = 300
+PORT_JUNCTION_RADIUS = 300  # optimal from grid search (min FP×FN on 5 images)
 PORT_JUNCTION_FALLBACK = 250  # wider radius for second-pass matching
 JJ_ALIGN_PX = 15  # horizontal/vertical alignment tolerance (hand-drawn variance)
 JJ_PROXIMITY = 12  # connect junctions within this range even without alignment
@@ -41,10 +50,61 @@ DEFAULT_CONFIG = {
     "use_skeleton": True, "use_degree_constraint": False,
     "use_nn_filter": True, "use_skel_jj": True,
     "use_sobel": True, "use_close_port": True,
-    "use_force_connect": True, "use_los": True,
+    "use_force_connect": False, "use_los": True,  # force-connect disabled: creates FPs
     "use_ccl": False,
+    "use_component_mask": True,
+    "use_terminal_components": True,
+    "use_wiring_trace": True,
+    "use_strict_p2j": True,
+    "use_outward_skeleton_trace": True,
+    "use_outward_port_anchors": True,
+    "use_directional_gap_bridge": False,
+    "use_directional_morph_close": False,
+    "use_strict_jj": True,
+    "use_crossing_semantics": False,
+    "skip_ocr": False,
     "skip_llm": False,
+    "save_artifacts": True,
+    "ocr_model_path": "runs/ocr_crnn_hand_v2/best.pt",
 }
+
+VALUELESS_COMPONENT_TYPES = frozenset({"GND", "Terminal"})
+
+
+def _component_accepts_value(component):
+    return component.get("name") not in VALUELESS_COMPONENT_TYPES
+
+
+def _make_pipeline_result(
+    *,
+    components,
+    text_values,
+    junctions,
+    routes,
+    conn_pairs,
+    raw_groups,
+    evaluation,
+    raw_junction_detections,
+    raw_text_detections,
+    p2j_connections=None,
+    jj_connections=None,
+    wiring_trace=None,
+):
+    """Build the stable visual-pipeline result contract used by evaluators."""
+    return dict(
+        components=components,
+        text_values=text_values,
+        junctions=junctions,
+        routes=routes,
+        conn_pairs=conn_pairs,
+        raw_groups=raw_groups,
+        evaluation=evaluation,
+        raw_junction_detections=raw_junction_detections,
+        raw_text_detections=raw_text_detections,
+        p2j_connections=p2j_connections or [],
+        jj_connections=jj_connections or [],
+        wiring_trace=wiring_trace or {"events": [], "summary": {}},
+    )
 
 # CGHD → HCD name mapping
 CGH_NAME_MAP = {
@@ -55,7 +115,7 @@ CGH_NAME_MAP = {
     "diode.thyrector": "Diode",
     "voltage.dc": "V-DC", "voltage.ac": "V-AC", "voltage.battery": "Battery",
     "gnd": "GND", "vss": "GND",
-    "transistor.bjt": "BJT-PNP", "transistor.fet": "MOSFET-P",
+    "transistor.bjt": "BJT", "transistor.fet": "MOSFET-P",
     "operational_amplifier": "Op-Amp",
     "thyristor": "Thyristor", "triac": "Triac", "diac": "Diac", "varistor": "Varistor",
     "lamp": "Lamp",
@@ -114,7 +174,7 @@ CGH_TO_PORT_KEY = {
     "diode.zener": "Zener Diode", "diode.thyrector": "Diode",
     "voltage.dc": "V-DC", "voltage.ac": "V-AC", "voltage.battery": "Battery",
     "gnd": "GND", "vss": "GND",
-    "transistor.bjt": "BJT-PNP", "transistor.fet": "MOSFET-P",
+    "transistor.bjt": "BJT", "transistor.fet": "MOSFET-P",
     "transistor.photo": "Photo-Transistor",
     "operational_amplifier": "Op-Amp",
     "operational_amplifier.schmitt_trigger": "Schmitt-Trigger",
@@ -142,7 +202,7 @@ PORT_LABELS = {
     "Diode":          ["A", "K"],
     "LED":            ["+", "-"],
     "Zener Diode":    ["A", "K"],
-    "Thyristor":      ["A", "K"],
+    "Thyristor":      ["A", "K", "G"],
     "Triac":          ["T1", "T2"],
     "Diac":           ["T1", "T2"],
     "Varistor":       ["1", "2"],
@@ -151,8 +211,8 @@ PORT_LABELS = {
     "I-DC":           ["-", "+"],
     "I-AC":           ["~", "~"],
     "GND":            ["GND"],
-    "BJT-NPN":        ["B", "E", "C"],
-    "BJT-PNP":        ["B", "E", "C"],
+    "Terminal":       ["T"],
+    "BJT":            ["B", "C", "E"],
     "MOSFET-N":       ["G", "S", "D"],
     "MOSFET-P":       ["G", "S", "D"],
     "Op-Amp":         ["-", "+", "OUT"],
@@ -173,12 +233,12 @@ PORT_LABELS = {
     "NOT":             ["A", "Y"],
     "NAND":            ["A", "B", "Y"],
     "NOR":             ["A", "B", "Y"],
-    "Switch":          ["1", "2"],
+    "Switch":          ["1", "2", "CTRL"],
     "Relay":           ["COIL1", "COIL2", "COM"],
     "Socket":          ["1", "2"],
     "Fuse":            ["1", "2"],
     "Speaker":         ["1", "2"],
-    "Motor":           ["+", "-"],
+    "Motor":           ["M+", "M-", "OUT"],
     "Microphone":      ["+", "-"],
     "Antenna":         ["ANT"],
     "Crystal":         ["1", "2"],
@@ -198,7 +258,7 @@ PORT_POSITIONS = {
     "Diode":          [(0,0.5), (1,0.5)],
     "LED":            [(0,0.5), (1,0.5)],
     "Zener Diode":    [(0,0.5), (1,0.5)],
-    "Thyristor":      [(0,0.5), (1,0.5)],
+    "Thyristor":      [(0,0.5), (1,0.5), (0.5,0.0)],
     "Triac":          [(0,0.5), (1,0.5)],
     "Diac":           [(0,0.5), (1,0.5)],
     "Varistor":       [(0,0.5), (1,0.5)],
@@ -207,8 +267,8 @@ PORT_POSITIONS = {
     "I-DC":           [(0.5,0.0), (0.5,1.0)],
     "I-AC":           [(0.5,0.0), (0.5,1.0)],
     "GND":            [(0.5,0.0)],
-    "BJT-NPN":        [(0.0,0.5), (0.7,0.0), (0.7,1.0)],
-    "BJT-PNP":        [(0.0,0.5), (0.7,0.0), (0.7,1.0)],
+    "Terminal":       [(0.5,0.5)],
+    "BJT":            [(0.0,0.5), (0.7,0.0), (0.7,1.0)],
     "MOSFET-N":       [(0,0.5), (0.5,1.0), (0.5,0.0)],
     "MOSFET-P":       [(0,0.5), (0.5,1.0), (0.5,0.0)],
     "Op-Amp":         [(0,0.5), (0,0.3), (1,0.5)],
@@ -229,12 +289,12 @@ PORT_POSITIONS = {
     "NOT":             [(0,0.5), (1,0.5), (0.5,0.0)],
     "NAND":            [(0,0.5), (1,0.5), (0.5,0.0)],
     "NOR":             [(0,0.5), (1,0.5), (0.5,0.0)],
-    "Switch":          [(0,0.5), (1,0.5)],
+    "Switch":          [(0,0.5), (1,0.5), (0.5,0.0)],
     "Relay":           [(0,0.3), (0,0.7), (1,0.5)],
     "Socket":          [(0,0.5), (1,0.5)],
     "Fuse":            [(0,0.5), (1,0.5)],
     "Speaker":         [(0,0.5), (1,0.5)],
-    "Motor":           [(0,0.5), (1,0.5)],
+    "Motor":           [(0,0.5), (1,0.5), (0.5,0.0)],
     "Microphone":      [(0,0.5), (1,0.5)],
     "Antenna":         [(0.5,0.0)],
     "Crystal":         [(0,0.5), (1,0.5)],
@@ -266,8 +326,7 @@ ANTI_PATTERNS = {
     "Wire Crossover": [r".*"],
     "MOSFET-N":    [r"[ΩFVHzμAH]$"],
     "MOSFET-P":    [r"[ΩFVHzμAH]$"],
-    "BJT-NPN":     [r"[ΩFVHzμAH]$"],
-    "BJT-PNP":     [r"[ΩFVHzμAH]$"],
+    "BJT":         [r"[ΩFVHzμAH]$"],
     "Op-Amp":      [r"[ΩFVHzμAH]$"],
     "Thyristor":   [r"[ΩFVHzμAH]$"],
     "Triac":       [r"[ΩFVHzμAH]$"],
@@ -289,7 +348,7 @@ NMS_IOU_THRESH = 0.35  # IoU above which same-family overlapping detections are 
 DESIG = {"Resistor": "R", "Capacitor": "C", "Polarized-Capacitor": "C", "Inductor": "L",
          "Diode": "D", "Zener Diode": "ZD", "LED": "LED",
          "V-DC": "V", "V-AC": "V", "I-DC": "I", "I-AC": "I",
-         "GND": "GND", "BJT-NPN": "Q", "BJT-PNP": "Q",
+         "GND": "GND", "Terminal": "T", "BJT": "Q",
          "MOSFET-N": "Q", "MOSFET-P": "Q", "Op-Amp": "U",
          "Thyristor": "SCR", "Triac": "TRIAC", "Diac": "DIAC", "Varistor": "VDR",
          "Lamp": "Lamp",
@@ -308,7 +367,7 @@ NM_CH = {"Resistor": "电阻", "Capacitor": "电容", "Polarized-Capacitor": "�
          "Diode": "二极管", "LED": "发光二极管", "Zener Diode": "稳压管", "GND": "地线",
          "V-DC": "直流电压源", "V-AC": "交流电压源",
          "I-DC": "直流电流源", "I-AC": "交流电流源",
-         "BJT-NPN": "NPN三极管", "BJT-PNP": "PNP三极管",
+         "BJT": "BJT三极管",
          "MOSFET-N": "N沟道MOSFET", "MOSFET-P": "P沟道MOSFET",
          "Op-Amp": "运算放大器", "Thyristor": "晶闸管",
          "Triac": "双向晶闸管", "Diac": "双向触发二极管", "Varistor": "压敏电阻",
@@ -363,13 +422,11 @@ def add_correction(ocr_text, correct_value):
 # Lazy model loading
 # ---------------------------------------------------------------------------
 _CGH_MODEL = None
-_OCR_MODEL = None
-_OCR_CHARS = ""
-_OCR_ITOC = {}
-_OCR_IMG_H = 32
+_OCR_RUNTIME = None
+_OCR_MODEL_PATH = None
 
-def _load_models():
-    global _CGH_MODEL, _OCR_MODEL, _OCR_CHARS, _OCR_ITOC, _OCR_IMG_H
+def _load_models(config=None):
+    global _CGH_MODEL, _OCR_RUNTIME, _OCR_MODEL_PATH
     if _CGH_MODEL is None:
         cghd_path = os.path.join(MODELS_DIR, "cghd_61cls", "weights", "best.pt")
         if not os.path.isfile(cghd_path):
@@ -377,10 +434,25 @@ def _load_models():
         _CGH_MODEL = YOLO(cghd_path)
         print(f"YOLO: CGHD 61-class loaded ({len(_CGH_MODEL.names)} classes)")
 
-    if _OCR_MODEL is None:
-        _OCR_MODEL, _OCR_CHARS, _, _OCR_ITOC, _OCR_IMG_H = load_trained_model("runs/ocr_crnn_machine/best.pt")
-        print(f"OCR: CRNN loaded ({len(_OCR_CHARS)} chars)")
+    active_config = DEFAULT_CONFIG if config is None else config
+    if not active_config.get("skip_ocr", False):
+        ocr_model_path = active_config.get(
+            "ocr_model_path", DEFAULT_CONFIG["ocr_model_path"]
+        )
+        if _OCR_RUNTIME is None or _OCR_MODEL_PATH != ocr_model_path:
+            _OCR_RUNTIME = load_ocr_runtime(ocr_model_path)
+            _OCR_MODEL_PATH = ocr_model_path
+            print(
+                f"OCR: {_OCR_RUNTIME.backend} loaded "
+                f"({len(_OCR_RUNTIME.chars)} chars, {ocr_model_path})"
+            )
     return _CGH_MODEL
+
+
+def _predict_ocr(crop):
+    if _OCR_RUNTIME is None:
+        raise RuntimeError("OCR runtime has not been loaded")
+    return _OCR_RUNTIME.predict(crop)
 
 # ---------------------------------------------------------------------------
 # Sobel orientation detection
@@ -797,22 +869,124 @@ def _verify_skeleton_any(skeleton, x1, y1, x2, y2, margin=6, min_ratio=0.30):
 # ---------------------------------------------------------------------------
 # Skeleton-based wire tracing
 # ---------------------------------------------------------------------------
-def _extract_skeleton(gray_img, max_dim=800):
-    """Extract single-pixel skeleton from grayscale circuit image.
-    Steps: resize → adaptive threshold → morph close → Zhang-Suen thinning.
+def _mask_component_interiors(wire_mask, components, im_scale=1.0):
+    """Remove inset component interiors from a white-foreground wire mask."""
+    h, w = wire_mask.shape[:2]
+    inset = max(3, int(5 * im_scale))
+    for component in components:
+        xyxy = component.get("xyxy")
+        if xyxy is None or len(xyxy) != 4:
+            continue
+        x1, y1, x2, y2 = (int(round(value)) for value in xyxy)
+        x1 = min(w, max(0, x1)); x2 = min(w, max(0, x2))
+        y1 = min(h, max(0, y1)); y2 = min(h, max(0, y2))
+        mx1, my1 = x1 + inset, y1 + inset
+        mx2, my2 = x2 - inset, y2 - inset
+        if mx2 > mx1 and my2 > my1:
+            wire_mask[my1:my2, mx1:mx2] = 0
+    return wire_mask
+
+
+def _build_wire_mask(gray_img, components, im_scale=1.0,
+                     threshold_block_size=21, threshold_c=6):
+    """Return white wire evidence with inset component interiors removed."""
+    wire_mask = cv2.adaptiveThreshold(
+        gray_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV, threshold_block_size, threshold_c,
+    )
+    return _mask_component_interiors(wire_mask, components, im_scale=im_scale)
+
+
+def _build_ccl_wire_mask(gray_img, components, use_component_mask, im_scale=1.0):
+    """Build CCL input, optionally masking component interiors."""
+    if use_component_mask:
+        return _build_wire_mask(gray_img, components, im_scale=im_scale)
+    return cv2.adaptiveThreshold(
+        gray_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV, 21, 6,
+    )
+
+
+def _extract_scaled_skeleton(gray_img, components=None, im_scale=1.0,
+                             max_dim=800, directional_close_length=0):
+    """Extract a skeleton using the legacy scaled 15/4 threshold flow."""
+    components = [] if components is None else components
+    orig_h, orig_w = gray_img.shape[:2]
+    scale = min(1.0, max_dim / max(orig_h, orig_w))
+    scaled_gray = gray_img
+    scaled_components = components
+    if scale < 1.0:
+        scaled_size = (int(orig_w * scale), int(orig_h * scale))
+        scaled_gray = cv2.resize(gray_img, scaled_size)
+        scaled_components = []
+        for component in components:
+            scaled_component = dict(component)
+            xyxy = component.get("xyxy")
+            if xyxy is not None and len(xyxy) == 4:
+                scaled_component["xyxy"] = tuple(value * scale for value in xyxy)
+            scaled_components.append(scaled_component)
+    wire_mask = _build_wire_mask(
+        scaled_gray, scaled_components, im_scale=im_scale * scale,
+        threshold_block_size=15, threshold_c=4,
+    )
+    skeleton = _extract_skeleton_from_mask(
+        wire_mask,
+        max_dim=max(scaled_gray.shape[:2]),
+        directional_close_length=directional_close_length,
+    )
+    if scale < 1.0:
+        skeleton = cv2.resize(
+            skeleton, (orig_w, orig_h), interpolation=cv2.INTER_NEAREST,
+        )
+    return skeleton
+
+
+def _extract_component_masked_skeleton(gray_img, components, im_scale=1.0,
+                                       max_dim=800, directional_close_length=0):
+    """Extract a scaled skeleton after masking component interiors."""
+    return _extract_scaled_skeleton(
+        gray_img,
+        components,
+        im_scale=im_scale,
+        max_dim=max_dim,
+        directional_close_length=directional_close_length,
+    )
+
+
+def _directional_close_wire_mask(binary_mask, kernel_length=5):
+    """Close only short horizontal/vertical mask gaps, never diagonal ones."""
+    if kernel_length <= 1:
+        return binary_mask.copy()
+    horizontal_kernel = np.ones((1, int(kernel_length)), np.uint8)
+    vertical_kernel = np.ones((int(kernel_length), 1), np.uint8)
+    horizontal = cv2.morphologyEx(
+        binary_mask, cv2.MORPH_CLOSE, horizontal_kernel, iterations=1,
+    )
+    vertical = cv2.morphologyEx(
+        binary_mask, cv2.MORPH_CLOSE, vertical_kernel, iterations=1,
+    )
+    return cv2.bitwise_or(binary_mask, cv2.bitwise_or(horizontal, vertical))
+
+
+def _extract_skeleton_from_mask(binary_mask, max_dim=800,
+                                directional_close_length=0):
+    """Extract single-pixel skeleton from a white-foreground binary mask.
+    Steps: resize → morph close → Zhang-Suen thinning.
     Returns binary skeleton image (255=wire, 0=background) at ORIGINAL resolution.
     """
-    orig_h, orig_w = gray_img.shape[:2]
+    orig_h, orig_w = binary_mask.shape[:2]
     scale = 1.0
     if max(orig_h, orig_w) > max_dim:
         scale = max_dim / max(orig_h, orig_w)
-        gray_img = cv2.resize(gray_img, (int(orig_w*scale), int(orig_h*scale)))
-    # Adaptive threshold for varying illumination / pen pressure
-    bin_img = cv2.adaptiveThreshold(gray_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                     cv2.THRESH_BINARY_INV, 15, 4)
+        binary_mask = cv2.resize(binary_mask, (int(orig_w*scale), int(orig_h*scale)),
+                                 interpolation=cv2.INTER_NEAREST)
+    if directional_close_length > 1:
+        binary_mask = _directional_close_wire_mask(
+            binary_mask, kernel_length=directional_close_length,
+        )
     # Bridge small gaps (≤3px)
     kernel = np.ones((3, 3), np.uint8)
-    closed = cv2.morphologyEx(bin_img, cv2.MORPH_CLOSE, kernel, iterations=1)
+    closed = cv2.morphologyEx(binary_mask, cv2.MORPH_CLOSE, kernel, iterations=1)
 
     # Zhang-Suen thinning
     skel = (closed // 255).astype(np.uint8)
@@ -847,6 +1021,16 @@ def _extract_skeleton(gray_img, max_dim=800):
     if scale < 1.0:
         skeleton = cv2.resize(skeleton, (orig_w, orig_h), interpolation=cv2.INTER_NEAREST)
     return skeleton
+
+
+def _extract_skeleton(gray_img, max_dim=800, directional_close_length=0):
+    """Backward-compatible grayscale wrapper around mask-based extraction."""
+    return _extract_scaled_skeleton(
+        gray_img,
+        max_dim=max_dim,
+        directional_close_length=directional_close_length,
+    )
+
 
 def _snap_ports_to_skeleton(components, skeleton, search_radius=15):
     """改进1: Snap each port to the nearest skeleton endpoint.
@@ -1227,12 +1411,14 @@ def process_image(img_path, config=None):
     else:
         cfg = dict(DEFAULT_CONFIG); cfg.update(config); config = cfg
 
+    wiring_trace = WiringTrace(enabled=config["use_wiring_trace"])
+
     img_name = os.path.basename(img_path)
     print(f"\n{'='*60}")
     print(f"  {img_name}")
     print(f"{'='*60}")
 
-    cgh_model = _load_models()
+    cgh_model = _load_models(config)
     img = cv2.imread(img_path)
     if img is None:
         print(f"ERROR: Cannot read {img_path}")
@@ -1260,7 +1446,9 @@ def process_image(img_path, config=None):
     results = cgh_model(img_path)[0]
     components = []
     junctions_raw = []
+    raw_junction_detections = []
     text_bboxes = []  # CGHD's own text detections for OCR
+    raw_text_detections = []
 
     for box in (results.boxes or []):
         name = cgh_model.names[int(box.cls[0])]
@@ -1268,13 +1456,29 @@ def process_image(img_path, config=None):
 
         if name in ("junction", "terminal") and conf >= JUNCTION_CONF:
             x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
-            junctions_raw.append(((x1 + x2) // 2, (y1 + y2) // 2))
+            raw_junction_detections.append(
+                dict(label=name, bbox=[x1, y1, x2, y2], score=conf)
+            )
+            classified = classify_connection_detection(
+                name,
+                [x1, y1, x2, y2],
+                conf,
+                config["use_terminal_components"],
+                len(components),
+            )
+            if classified["junction"] is not None:
+                junctions_raw.append(classified["junction"])
+            if classified["component"] is not None:
+                components.append(classified["component"])
             continue
 
         # Collect CGHD text detections for OCR (not added to components)
         if name == "text" and conf >= CGH_CONF_THRESH:
             x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
             text_bboxes.append((x1, y1, x2, y2, conf))
+            raw_text_detections.append(
+                dict(label="text", bbox=[x1, y1, x2, y2], score=conf, text="")
+            )
             continue
 
         if name in CGH_SKIP or conf < CGH_CONF_THRESH:
@@ -1416,23 +1620,29 @@ def process_image(img_path, config=None):
         return False
 
     text_values = []
-    for x1, y1, x2, y2, conf in text_bboxes:
+    for text_index, (x1, y1, x2, y2, conf) in enumerate(text_bboxes):
+        if config["skip_ocr"]:
+            continue
         if inside_gnd_only(x1, y1, x2, y2):
             continue
         crop = gray[y1:y2, x1:x2]
         if crop.size == 0:
             continue
-        raw = crnn_predict(_OCR_MODEL, crop, _OCR_CHARS, _OCR_ITOC, _OCR_IMG_H)
+        raw = _predict_ocr(crop)
         raw = _clean_ocr(raw)
         corrections = _load_corrections()
         raw = _apply_corrections(raw, corrections)
+        raw_text_detections[text_index]["text"] = raw
         if raw:
             text_values.append(dict(
                 text=raw, cx=(x1 + x2) // 2, cy=(y1 + y2) // 2,
                 xyxy=(x1, y1, x2, y2), conf=conf
             ))
 
-    print(f"  OCR texts: {len(text_values)}")
+    if config["skip_ocr"]:
+        print(f"  OCR: skipped for wiring-only experiment ({len(text_bboxes)} text boxes retained)")
+    else:
+        print(f"  OCR texts: {len(text_values)}")
 
     # ---- Step 3: Match values (proximity-first with OCR variant correction) ----
     # For each text value, try all component types. Pick best (comp, variant) by:
@@ -1443,7 +1653,7 @@ def process_image(img_path, config=None):
         variants = _ocr_variants(tv["text"])
         best_for_tv = None  # (ci, value, dist, is_exact)
         for ci, c in enumerate(components):
-            if c["name"] == "GND":
+            if not _component_accepts_value(c):
                 continue
             dist = abs(tv["cx"] - c["cx"]) + abs(tv["cy"] - c["cy"])
             if dist > 250:
@@ -1474,7 +1684,7 @@ def process_image(img_path, config=None):
         assigned_tv.add(ti)
     # Second pass: fill unassigned components from remaining text (with variants)
     for c in components:
-        if c["value"] or c["name"] == "GND":
+        if c["value"] or not _component_accepts_value(c):
             continue
         best_text, best_ti, best_dist = "", -1, 99999
         for ti, tv in enumerate(text_values):
@@ -1507,7 +1717,7 @@ def process_image(img_path, config=None):
         "I-AC": ["A", "mA"],
     }
     for c in components:
-        if c["conf"] < HC_CONF or not c["value"] or c["name"] == "GND":
+        if c["conf"] < HC_CONF or not c["value"] or not _component_accepts_value(c):
             continue
         valid_units = UNIT_MAP.get(c["name"], [])
         if not valid_units:
@@ -1596,16 +1806,9 @@ def process_image(img_path, config=None):
     if config["use_ccl"]:
         print("  Wiring: CCL (Connected Component Analysis)")
         # 1. Binarize: adaptive threshold handles uneven lighting in hand-drawn scans
-        wire_mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                          cv2.THRESH_BINARY_INV, 21, 6)
-        # White-out component INTERIORS only (inset), keep edges visible for ports
-        inset = max(3, int(5 * im_scale))
-        for c in components:
-            x1, y1, x2, y2 = c["xyxy"]
-            mx1 = max(0, x1 + inset); my1 = max(0, y1 + inset)
-            mx2 = min(w, x2 - inset); my2 = min(h, y2 - inset)
-            if mx2 > mx1 and my2 > my1:
-                wire_mask[my1:my2, mx1:mx2] = 0  # black
+        wire_mask = _build_ccl_wire_mask(
+            gray, components, config["use_component_mask"], im_scale=im_scale,
+        )
 
         # 2. Dilate to bridge hand-drawn gaps
         k = max(2, int(3 * im_scale))
@@ -1623,20 +1826,32 @@ def process_image(img_path, config=None):
             for pi, (px, py) in enumerate(c["ports"]):
                 px_c = max(0, min(w - 1, px))
                 py_c = max(0, min(h - 1, py))
-                # Sample labels in a small radial search around port
-                r = max(3, int(6 * im_scale))
-                found_labels = []
-                for dy in range(-r, r + 1, 2):
-                    for dx in range(-r, r + 1, 2):
-                        sy, sx = py_c + dy, px_c + dx
-                        if 0 <= sy < h and 0 <= sx < w:
-                            lbl = labels[sy, sx]
-                            if lbl > 0:
-                                found_labels.append(lbl)
-                if found_labels:
-                    # Use most common label
-                    lbl = max(set(found_labels), key=found_labels.count)
-                    port_labels[(ci, pi)] = lbl
+                # Find the nearest non-zero label within expanding search radius
+                best_lbl, best_d = 0, max(3, int(8 * im_scale))
+                for r in range(1, best_d + 1, 2):
+                    found = False
+                    for dy in range(-r, r + 1, 2):
+                        for dx in range(-r, r + 1, 2):
+                            sy, sx = py_c + dy, px_c + dx
+                            if 0 <= sy < h and 0 <= sx < w:
+                                lbl = labels[sy, sx]
+                                if lbl > 0:
+                                    best_lbl = lbl
+                                    found = True
+                                    break
+                        if found:
+                            break
+                    if found:
+                        break
+                if best_lbl > 0:
+                    port_labels[(ci, pi)] = best_lbl
+                else:
+                    if found_labels := [labels[py_c + dy, px_c + dx]
+                                        for dy in range(-best_d, best_d + 1, 2)
+                                        for dx in range(-best_d, best_d + 1, 2)
+                                        if 0 <= py_c + dy < h and 0 <= px_c + dx < w
+                                        and labels[py_c + dy, px_c + dx] > 0]:
+                        port_labels[(ci, pi)] = max(set(found_labels), key=found_labels.count)
 
         # 5. Build p2j_connections: ports sharing the same label → same net
         #    Use virtual junction points at centroid of each region
@@ -1651,6 +1866,11 @@ def process_image(img_path, config=None):
                 cy = int(centroids[lbl][1])
                 for ci, pi in port_list:
                     p2j_connections.append((ci, pi, cx, cy))
+                    wiring_trace.record(
+                        "ccl", "p2j", True, "shared_connected_component",
+                        source={"component_index": ci, "port_index": pi},
+                        target={"junction": [cx, cy]},
+                    )
 
         jj_connections = []
         junctions = [(int(centroids[l][0]), int(centroids[l][1]))
@@ -1694,7 +1914,22 @@ def process_image(img_path, config=None):
     # ---- Step 5e: Skeleton-based wire validation ----
     if config["use_skeleton"]:
         try:
-            skeleton = _extract_skeleton(gray)
+            if config["use_component_mask"]:
+                skeleton = _extract_component_masked_skeleton(
+                    gray,
+                    components,
+                    im_scale=im_scale,
+                    directional_close_length=(
+                        5 if config["use_directional_morph_close"] else 0
+                    ),
+                )
+            else:
+                skeleton = _extract_skeleton(
+                    gray,
+                    directional_close_length=(
+                        5 if config["use_directional_morph_close"] else 0
+                    ),
+                )
             # Pre-compute junction branch counts from skeleton
             _junc_branch_count = {}
             for jx, jy in junctions:
@@ -1716,29 +1951,136 @@ def process_image(img_path, config=None):
     # ---- Step 6: Port → Junction connections ----
     if not config["use_ccl"]:
         p2j_connections = []  # [(comp_idx, port_idx, jx, jy)]
+        traced_p2p_pairs = set()
         for ci, c in enumerate(components):
             for pi, (px, py) in enumerate(c["ports"]):
+                trace_anchors = build_trace_anchors(
+                    junctions=junctions,
+                    components=components,
+                    source_component_index=ci,
+                    include_component_ports=config["use_outward_port_anchors"],
+                )
+                if (
+                    config["use_outward_skeleton_trace"]
+                    and skeleton is not None
+                    and trace_anchors
+                ):
+                    traced = trace_port_to_anchor(
+                        skeleton=skeleton,
+                        port=(px, py),
+                        component_center=(c["cx"], c["cy"]),
+                        anchors=trace_anchors,
+                        search_radius=skel_search,
+                        anchor_radius=max(6, int(10 * im_scale)),
+                        max_steps=max(100, int(600 * im_scale)),
+                        gap_bridge=(
+                            skel_gap
+                            if config["use_directional_gap_bridge"]
+                            else 0
+                        ),
+                    )
+                    if traced is not None:
+                        anchor_kind = parse_trace_anchor_id(traced["anchor_id"])
+                        if anchor_kind[0] == "port":
+                            _, other_ci, other_pi = anchor_kind
+                            pair = tuple(sorted(((ci, pi), (other_ci, other_pi))))
+                            if pair in traced_p2p_pairs:
+                                wiring_trace.record(
+                                    "p2p_trace", "p2p", False, "duplicate_pair",
+                                    source={"component_index": ci, "port_index": pi},
+                                    target={
+                                        "component_index": other_ci,
+                                        "port_index": other_pi,
+                                    },
+                                )
+                                continue
+                            other_x, other_y = components[other_ci]["ports"][other_pi]
+                            mx, my = (px + other_x) // 2, (py + other_y) // 2
+                            p2j_connections.append((ci, pi, mx, my))
+                            p2j_connections.append((other_ci, other_pi, mx, my))
+                            traced_p2p_pairs.add(pair)
+                            if (mx, my) not in junctions:
+                                junctions.append((mx, my))
+                            wiring_trace.record(
+                                "p2p_trace", "p2p", True, traced["reason"],
+                                source={"component_index": ci, "port_index": pi},
+                                target={
+                                    "component_index": other_ci,
+                                    "port_index": other_pi,
+                                },
+                                path_length=traced["path_length"],
+                                visited_pixels=traced["visited_pixels"],
+                                gap_bridges=traced["gap_bridges"],
+                                max_gap=traced["max_gap"],
+                            )
+                            continue
+                        jx, jy = traced["anchor"]
+                        p2j_connections.append((ci, pi, jx, jy))
+                        wiring_trace.record(
+                            "p2j_trace",
+                            "p2j",
+                            True,
+                            traced["reason"],
+                            source={"component_index": ci, "port_index": pi},
+                            target={"junction": [jx, jy]},
+                            path_length=traced["path_length"],
+                            visited_pixels=traced["visited_pixels"],
+                            gap_bridges=traced["gap_bridges"],
+                            max_gap=traced["max_gap"],
+                        )
+                        continue
+                    wiring_trace.record(
+                        "p2j_trace",
+                        "p2j",
+                        False,
+                        "no_skeleton_path",
+                        source={"component_index": ci, "port_index": pi},
+                    )
+                    if config["use_strict_p2j"]:
+                        continue
                 best_j, best_d = None, pjr
+                best_reason = ""
+                considered = []
                 for jx, jy in junctions:
                     d = math.hypot(px - jx, py - jy)
                     if d >= pjr:
                         continue
-                    # 改进2: skeleton-verified priority lock
-                    skel_locked = False
+                    crosses_component = crosses((px, py), (jx, jy), components, ci)
+                    path_found = False
                     if config["use_skeleton"] and skeleton is not None:
-                        if _verify_skeleton_path(skeleton, px, py, jx, jy,
-                                                 margin=3, min_ratio=0.50):
-                            if not crosses((px, py), (jx, jy), components, ci):
-                                best_j = (jx, jy)
-                                skel_locked = True
-                                break  # skeleton verified → lock immediately
-                    if skel_locked:
-                        break
-                    # Standard distance-based matching (fallback when no skeleton lock)
+                        path_found = _verify_skeleton_path(
+                            skeleton, px, py, jx, jy, margin=3, min_ratio=0.50
+                        )
+                    allowed, reason = accept_p2j_candidate(
+                        distance=d,
+                        path_found=path_found,
+                        crosses_component=crosses_component,
+                        strict=config["use_strict_p2j"],
+                    )
+                    considered.append(((jx, jy), d, allowed, reason, path_found))
+                    if not allowed:
+                        continue
+                    if path_found:
+                        best_j = (jx, jy)
+                        best_d = d
+                        best_reason = reason
+                        break  # preserve skeleton-priority lock
                     if d < best_d:
-                        if not crosses((px, py), (jx, jy), components, ci):
-                            best_d = d
-                            best_j = (jx, jy)
+                        best_d = d
+                        best_j = (jx, jy)
+                        best_reason = reason
+                for target, distance, allowed, reason, path_found in considered:
+                    selected = allowed and target == best_j
+                    wiring_trace.record(
+                        "p2j_initial",
+                        "p2j",
+                        selected,
+                        best_reason if selected else reason if not allowed else "not_selected",
+                        source={"component_index": ci, "port_index": pi},
+                        target={"junction": list(target)},
+                        distance=distance,
+                        path_found=path_found,
+                    )
                 if best_j:
                     p2j_connections.append((ci, pi, best_j[0], best_j[1]))
 
@@ -1788,6 +2130,12 @@ def process_image(img_path, config=None):
                 if min_jd > pjf and \
                    ((int(tx), int(ty)) in junc_set or min_jd > pjr * 1.5):
                     p2j_connections.append((s_ci, s_pi, tx, ty))
+                    wiring_trace.record(
+                        "p2j_skeleton_fallback", "p2j", True,
+                        "traced_to_detected_junction",
+                        source={"component_index": s_ci, "port_index": s_pi},
+                        target={"junction": [int(tx), int(ty)]},
+                    )
                     skel_added += 1
             if skel_added:
                 print(f"  Port→Junction (skeleton fallback): +{skel_added}")
@@ -1811,6 +2159,26 @@ def process_image(img_path, config=None):
                         max_d = PORT_LINE_MAX if aligned else PORT_PORT_MAX
                         d = math.hypot(px - qx, py - qy)
                         if d < max_d and d < best_dist:
+                            path_found = bool(
+                                skeleton is not None
+                                and (
+                                    _verify_skeleton_path(
+                                        skeleton, px, py, qx, qy,
+                                        margin=5, min_ratio=0.35,
+                                    ) if aligned else _verify_skeleton_any(
+                                        skeleton, px, py, qx, qy,
+                                        margin=6, min_ratio=0.50,
+                                    )
+                                )
+                            )
+                            if config["use_strict_p2j"] and not path_found:
+                                wiring_trace.record(
+                                    "p2p_direct", "p2p", False, "no_skeleton_path",
+                                    source={"component_index": i, "port_index": pi},
+                                    target={"component_index": j, "port_index": pj_idx},
+                                    distance=d,
+                                )
+                                continue
                             if aligned or not crosses((px, py), (qx, qy), components, i):
                                 best_dist = d
                                 best_j = (qx, qy)
@@ -1819,6 +2187,13 @@ def process_image(img_path, config=None):
                     mx, my = (px + best_j[0]) // 2, (py + best_j[1]) // 2
                     p2j_connections.append((i, pi, mx, my))
                     p2j_connections.append((best_port[0], best_port[1], mx, my))
+                    wiring_trace.record(
+                        "p2p_direct", "p2p", True,
+                        "skeleton_supported" if config["use_strict_p2j"] else "legacy_proximity",
+                        source={"component_index": i, "port_index": pi},
+                        target={"component_index": best_port[0], "port_index": best_port[1]},
+                        distance=best_dist,
+                    )
                     if (mx, my) not in junctions:
                         junctions.append((mx, my))
 
@@ -1836,16 +2211,49 @@ def process_image(img_path, config=None):
                 if (ci, pi) in connected_ports:
                     continue
                 best_j, best_d = None, pjf
+                best_reason = ""
+                considered = []
                 for jx, jy in junctions:
                     d = math.hypot(px - jx, py - jy)
-                    if d < best_d and not crosses((px, py), (jx, jy), components, ci):
-                        # Don't connect both ports of same component to same junction
-                        if len(c["ports"]) == 2:
-                            other_pi = 1 - pi
-                            if other_pi in comp_junc_used.get((ci, jx, jy), set()):
-                                continue
+                    if d >= best_d:
+                        continue
+                    would_short = False
+                    if len(c["ports"]) == 2:
+                        other_pi = 1 - pi
+                        would_short = other_pi in comp_junc_used.get((ci, jx, jy), set())
+                    if would_short:
+                        considered.append(((jx, jy), d, False, "would_short_component", False))
+                        continue
+                    crosses_component = crosses((px, py), (jx, jy), components, ci)
+                    path_found = bool(
+                        skeleton is not None
+                        and _verify_skeleton_path(
+                            skeleton, px, py, jx, jy, margin=3, min_ratio=0.50
+                        )
+                    )
+                    allowed, reason = accept_p2j_candidate(
+                        distance=d,
+                        path_found=path_found,
+                        crosses_component=crosses_component,
+                        strict=config["use_strict_p2j"],
+                    )
+                    considered.append(((jx, jy), d, allowed, reason, path_found))
+                    if allowed:
                         best_d = d
                         best_j = (jx, jy)
+                        best_reason = reason
+                for target, distance, allowed, reason, path_found in considered:
+                    selected = allowed and target == best_j
+                    wiring_trace.record(
+                        "p2j_fallback",
+                        "p2j",
+                        selected,
+                        best_reason if selected else reason if not allowed else "not_selected",
+                        source={"component_index": ci, "port_index": pi},
+                        target={"junction": list(target)},
+                        distance=distance,
+                        path_found=path_found,
+                    )
                 if best_j:
                     p2j_connections.append((ci, pi, best_j[0], best_j[1]))
                     connected_ports.add((ci, pi))
@@ -1871,6 +2279,26 @@ def process_image(img_path, config=None):
                         max_d = PORT_LINE_MAX if aligned else AGGRESSIVE_P2P
                         d = math.hypot(px - qx, py - qy)
                         if d < max_d and d < best_dist:
+                            path_found = bool(
+                                skeleton is not None
+                                and (
+                                    _verify_skeleton_path(
+                                        skeleton, px, py, qx, qy,
+                                        margin=5, min_ratio=0.35,
+                                    ) if aligned else _verify_skeleton_any(
+                                        skeleton, px, py, qx, qy,
+                                        margin=6, min_ratio=0.50,
+                                    )
+                                )
+                            )
+                            if config["use_strict_p2j"] and not path_found:
+                                wiring_trace.record(
+                                    "p2p_aggressive", "p2p", False, "no_skeleton_path",
+                                    source={"component_index": ci, "port_index": pi},
+                                    target={"component_index": cj_idx, "port_index": pj_idx},
+                                    distance=d,
+                                )
+                                continue
                             if aligned or not crosses((px, py), (qx, qy), components, ci):
                                 best_dist = d
                                 best_j = (qx, qy)
@@ -1880,6 +2308,13 @@ def process_image(img_path, config=None):
                     mx, my = (px + best_j[0]) // 2, (py + best_j[1]) // 2
                     p2j_connections.append((ci, pi, mx, my))
                     p2j_connections.append((best_port[0], best_port[1], mx, my))
+                    wiring_trace.record(
+                        "p2p_aggressive", "p2p", True,
+                        "skeleton_supported" if config["use_strict_p2j"] else "legacy_proximity",
+                        source={"component_index": ci, "port_index": pi},
+                        target={"component_index": best_port[0], "port_index": best_port[1]},
+                        distance=best_dist,
+                    )
                     connected_ports.add((ci, pi))
                     connected_ports.add(best_port)
                     if (mx, my) not in junctions:
@@ -1902,6 +2337,30 @@ def process_image(img_path, config=None):
 
         # Track connections per junction for degree constraint
         junc_conn_count = defaultdict(int)
+
+        def strict_jj_candidate(j1, j2):
+            if not config["use_strict_jj"]:
+                return True, "legacy_jj_candidate"
+            allowed, reason = strict_jj_decision(
+                skeleton=skeleton,
+                start=j1,
+                end=j2,
+                detected_junctions=junctions,
+                crossing_semantics=config["use_crossing_semantics"],
+                search_radius=max(3, int(5 * im_scale)),
+                junction_radius=max(5, int(8 * im_scale)),
+                max_steps=max(100, int(1200 * im_scale)),
+            )
+            if not allowed:
+                wiring_trace.record(
+                    "jj_strict",
+                    "jj",
+                    False,
+                    reason,
+                    source={"junction": list(j1)},
+                    target={"junction": list(j2)},
+                )
+            return allowed, reason
 
         # Collect all aligned pairs with skeleton verification
         jj_raw = []  # (dist, jx1, jy1, jx2, jy2)
@@ -1928,7 +2387,9 @@ def process_image(img_path, config=None):
                     continue
                 dist = math.hypot(jx1 - jx2, jy1 - jy2)
                 if dist < JJ_PROXIMITY:
-                    jj_raw.append((dist, jx1, jy1, jx2, jy2))
+                    allowed, _ = strict_jj_candidate((jx1, jy1), (jx2, jy2))
+                    if allowed:
+                        jj_raw.append((dist, jx1, jy1, jx2, jy2))
                     continue
                 aligned_h = abs(jy1 - jy2) < jj_align and abs(jx1 - jx2) > 10
                 aligned_v = abs(jx1 - jx2) < jj_align and abs(jy1 - jy2) > 10
@@ -1938,7 +2399,13 @@ def process_image(img_path, config=None):
                 if skeleton is not None:
                     skel_ok = _verify_skeleton_path(skeleton, jx1, jy1, jx2, jy2, margin=5, min_ratio=0.15)
                 on_wire = _on_same_wire(jx1, jy1, jx2, jy2, wire_bboxes)
-                if skel_ok or on_wire or not config["use_skeleton"]:
+                allowed, _ = strict_jj_candidate((jx1, jy1), (jx2, jy2))
+                if allowed and (
+                    config["use_strict_jj"]
+                    or skel_ok
+                    or on_wire
+                    or not config["use_skeleton"]
+                ):
                     jj_raw.append((dist, jx1, jy1, jx2, jy2))
 
         jj_connections = []
@@ -1969,6 +2436,14 @@ def process_image(img_path, config=None):
                             if junc_conn_count[(jx, jy)] >= max_deg + 2 or junc_conn_count[(nx, ny)] >= max_deg_n + 2:
                                 continue
                         jj_connections.append((jx, jy, nx, ny))
+                        wiring_trace.record(
+                            "jj_aligned",
+                            "jj",
+                            True,
+                            "nearest_directional_neighbor",
+                            source={"junction": [jx, jy]},
+                            target={"junction": [nx, ny]},
+                        )
                         junc_conn_count[(jx, jy)] += 1
                         junc_conn_count[(nx, ny)] += 1
         else:
@@ -1980,6 +2455,14 @@ def process_image(img_path, config=None):
                     if junc_conn_count[(jx1, jy1)] >= max_deg + 2 or junc_conn_count[(jx2, jy2)] >= max_deg_n + 2:
                         continue
                 jj_connections.append((jx1, jy1, jx2, jy2))
+                wiring_trace.record(
+                    "jj_aligned",
+                    "jj",
+                    True,
+                    "legacy_all_pairs",
+                    source={"junction": [jx1, jy1]},
+                    target={"junction": [jx2, jy2]},
+                )
                 junc_conn_count[(jx1, jy1)] += 1
                 junc_conn_count[(jx2, jy2)] += 1
 
@@ -2019,11 +2502,28 @@ def process_image(img_path, config=None):
                     non_gnd_2 = {ci for ci in comps_2 if components[ci]["name"] != "GND"}
                     if not non_gnd_1 and not non_gnd_2:
                         continue
-                    if _verify_skeleton_any(skeleton, jx1, jy1, jx2, jy2, margin=6, min_ratio=0.50):
+                    strict_allowed, strict_reason = strict_jj_candidate(
+                        (jx1, jy1), (jx2, jy2)
+                    )
+                    if strict_allowed and (
+                        config["use_strict_jj"]
+                        or _verify_skeleton_any(
+                            skeleton, jx1, jy1, jx2, jy2,
+                            margin=6, min_ratio=0.50,
+                        )
+                    ):
                         max_deg_1 = _junc_branch_count.get((jx1, jy1), 8)
                         max_deg_2 = _junc_branch_count.get((jx2, jy2), 8)
                         if junc_conn_count[(jx1, jy1)] < max_deg_1 + 2 and                        junc_conn_count[(jx2, jy2)] < max_deg_2 + 2:
                             jj_connections.append((jx1, jy1, jx2, jy2))
+                            wiring_trace.record(
+                                "jj_skeleton",
+                                "jj",
+                                True,
+                                strict_reason if config["use_strict_jj"] else "skeleton_any",
+                                source={"junction": [jx1, jy1]},
+                                target={"junction": [jx2, jy2]},
+                            )
                             junc_conn_count[(jx1, jy1)] += 1
                             junc_conn_count[(jx2, jy2)] += 1
                             skel_jj_added += 1
@@ -2076,9 +2576,24 @@ def process_image(img_path, config=None):
                             if blocked:
                                 continue
                             d = math.hypot(ax - bx, ay - by)
+                            path_found = bool(
+                                skeleton is not None
+                                and _verify_skeleton_path(
+                                    skeleton, ax, ay, bx, by,
+                                    margin=5, min_ratio=0.15,
+                                )
+                            )
+                            if config["use_strict_p2j"] and not path_found:
+                                wiring_trace.record(
+                                    "los", "p2p", False, "no_skeleton_path",
+                                    source={"component_index": ia, "port_index": pa},
+                                    target={"component_index": ib, "port_index": pb},
+                                    distance=d,
+                                )
+                                continue
                             # For longer LOS, require skeleton wire support
                             if d > LOS_SKEL_MIN and skeleton is not None and config["use_skeleton"]:
-                                if not _verify_skeleton_path(skeleton, ax, ay, bx, by, margin=5, min_ratio=0.15):
+                                if not path_found:
                                     continue
                             los_candidates.append((d, ia, pa, ib, pb))
 
@@ -2094,6 +2609,13 @@ def process_image(img_path, config=None):
                 my = (components[ia]["ports"][pa][1] + components[ib]["ports"][pb][1]) // 2
                 p2j_connections.append((ia, pa, mx, my))
                 p2j_connections.append((ib, pb, mx, my))
+                wiring_trace.record(
+                    "los", "p2p", True,
+                    "skeleton_supported" if config["use_strict_p2j"] else "line_of_sight",
+                    source={"component_index": ia, "port_index": pa},
+                    target={"component_index": ib, "port_index": pb},
+                    distance=d,
+                )
                 connected_set.add((ia, pa))
                 connected_set.add((ib, pb))
                 los_added += 1
@@ -2121,14 +2643,36 @@ def process_image(img_path, config=None):
                             existing = comp_junc_ports.get((ci, jx, jy), set())
                             if existing - {pi}:
                                 continue
+                            path_found = bool(
+                                skeleton is not None
+                                and _verify_skeleton_path(
+                                    skeleton, px, py, jx, jy,
+                                    margin=5, min_ratio=0.15,
+                                )
+                            )
+                            if config["use_strict_p2j"] and not path_found:
+                                wiring_trace.record(
+                                    "force_connect", "p2j", False, "no_skeleton_path",
+                                    source={"component_index": ci, "port_index": pi},
+                                    target={"junction": [jx, jy]},
+                                    distance=d,
+                                )
+                                continue
                             if d > 150 and skeleton is not None and config["use_skeleton"]:
-                                if not _verify_skeleton_path(skeleton, px, py, jx, jy, margin=5, min_ratio=0.15):
+                                if not path_found:
                                     continue
                             if not crosses((px, py), (jx, jy), components, ci):
                                 best_d = d
                                 best_j = (jx, jy)
                     if best_j:
                         p2j_connections.append((ci, pi, best_j[0], best_j[1]))
+                        wiring_trace.record(
+                            "force_connect", "p2j", True,
+                            "skeleton_supported" if config["use_strict_p2j"] else "nearest_valid_junction",
+                            source={"component_index": ci, "port_index": pi},
+                            target={"junction": list(best_j)},
+                            distance=best_d,
+                        )
                         connected_set.add((ci, pi))
                         comp_junc_ports[(ci, best_j[0], best_j[1])].add(pi)
                         forced += 1
@@ -2154,14 +2698,39 @@ def process_image(img_path, config=None):
                                 continue
                             dx = abs(ax - bx)
                             dy = abs(ay - by)
-                            # Close ports: within 50px euclidean distance
-                            if math.hypot(dx, dy) < 50:
+                            # Close ports: within 20px euclidean (was 50, tightened — 建议3)
+                            if math.hypot(dx, dy) < 20:
                                 # Don't wire two GNDs together
                                 if ca["name"] == "GND" and cb["name"] == "GND":
+                                    continue
+                                # Skeleton verification for close-port pairs (建议3)
+                                skel_ok = not config["use_strict_p2j"]
+                                if skeleton is not None and config["use_skeleton"]:
+                                    # Vertically or horizontally aligned?
+                                    aligned = abs(dx) < jj_align or abs(dy) < jj_align
+                                    if aligned:
+                                        ratio = _verify_skeleton_path(skeleton, ax, ay, bx, by, margin=5, min_ratio=0.15)
+                                        skel_ok = ratio
+                                    else:
+                                        skel_ok = _verify_skeleton_any(skeleton, ax, ay, bx, by)
+                                if not skel_ok:
+                                    wiring_trace.record(
+                                        "close_port", "p2p", False, "no_skeleton_path",
+                                        source={"component_index": ia, "port_index": pa},
+                                        target={"component_index": ib, "port_index": pb},
+                                        distance=math.hypot(dx, dy),
+                                    )
                                     continue
                                 mx, my = (ax+bx)//2, (ay+by)//2
                                 p2j_connections.append((ia, pa, mx, my))
                                 p2j_connections.append((ib, pb, mx, my))
+                                wiring_trace.record(
+                                    "close_port", "p2p", True,
+                                    "skeleton_supported" if config["use_strict_p2j"] else "close_proximity",
+                                    source={"component_index": ia, "port_index": pa},
+                                    target={"component_index": ib, "port_index": pb},
+                                    distance=math.hypot(dx, dy),
+                                )
                                 connected_now.add((ia, pa))
                                 connected_now.add((ib, pb))
                                 if (mx, my) not in junctions:
@@ -2404,13 +2973,29 @@ def process_image(img_path, config=None):
         print(f"  LLM response received ({len(response)} chars)")
 
     # ---- Step 11: Draw annotated image ----
-    out_img = Path(img_path).parent / (Path(img_path).stem + "_wired.jpg")
-    _draw_result(img_path, components, text_values, junctions, routes, p2j_connections,
-                 jj_connections, str(out_img))
+    save_artifacts = config["save_artifacts"]
+    if save_artifacts:
+        out_img = Path(img_path).parent / (Path(img_path).stem + "_wired.jpg")
+        _draw_result(img_path, components, text_values, junctions, routes, p2j_connections,
+                     jj_connections, str(out_img))
 
     # ---- Rebuild junction numbering (after all synthetic junctions added) ----
     junctions = sorted(set((jx, jy) for jx, jy in junctions), key=lambda p: (p[1], p[0]))
     jid_map = {(jx, jy): f"J{i+1}" for i, (jx, jy) in enumerate(junctions)}
+
+    if not save_artifacts:
+        raw_groups = [sorted(port_set) for port_set in groups.values()
+                      if len(set(ci for ci, pi in port_set)) >= 2]
+        return _make_pipeline_result(
+            components=components, text_values=text_values, junctions=junctions,
+            routes=routes, conn_pairs=conn_pairs, raw_groups=raw_groups,
+            evaluation=response,
+            raw_junction_detections=raw_junction_detections,
+            raw_text_detections=raw_text_detections,
+            p2j_connections=p2j_connections,
+            jj_connections=jj_connections,
+            wiring_trace=wiring_trace.to_dict(),
+        )
 
     # ---- Step 12: Save TXT ----
     out_txt = Path(img_path).parent / (Path(img_path).stem + "_result.txt")
@@ -2447,9 +3032,16 @@ def process_image(img_path, config=None):
     # Build raw_groups: port-level connectivity for evaluation
     raw_groups = [sorted(port_set) for port_set in groups.values()
                   if len(set(ci for ci, pi in port_set)) >= 2]
-    return dict(components=components, text_values=text_values, junctions=junctions,
-                routes=routes, conn_pairs=conn_pairs, raw_groups=raw_groups,
-                evaluation=response)
+    return _make_pipeline_result(
+        components=components, text_values=text_values, junctions=junctions,
+        routes=routes, conn_pairs=conn_pairs, raw_groups=raw_groups,
+        evaluation=response,
+        raw_junction_detections=raw_junction_detections,
+        raw_text_detections=raw_text_detections,
+        p2j_connections=p2j_connections,
+        jj_connections=jj_connections,
+        wiring_trace=wiring_trace.to_dict(),
+    )
 
 # ---------------------------------------------------------------------------
 # Drawing
@@ -2465,7 +3057,7 @@ def _draw_result(img_path, components, text_values, junctions, routes,
         "V-DC": (200, 0, 0), "V-AC": (150, 0, 0),
         "I-DC": (0, 100, 0), "I-AC": (0, 150, 100),
         "GND": (0, 0, 200), "MOSFET-N": (100, 100, 0), "MOSFET-P": (100, 0, 100),
-        "BJT-NPN": (150, 150, 0), "BJT-PNP": (150, 0, 150), "Op-Amp": (0, 100, 100),
+        "BJT": (150, 150, 0), "Op-Amp": (0, 100, 100),
         "Thyristor": (200, 100, 0), "Triac": (200, 100, 100),
         "Diac": (150, 100, 50), "Varistor": (100, 50, 200),
         "IC": (255, 150, 0), "NE555": (255, 120, 50), "Voltage-Regulator": (0, 180, 100),

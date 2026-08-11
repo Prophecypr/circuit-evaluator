@@ -1,0 +1,213 @@
+{
+  "components": [
+    {
+      "conf": 0.9734391570091248,
+      "designator": "T1",
+      "idx": 0,
+      "labels": [
+        "P1",
+        "P2",
+        "S1",
+        "S2"
+      ],
+      "name": "Transformer",
+      "ports": [
+        [
+          292,
+          162
+        ],
+        [
+          292,
+          393
+        ],
+        [
+          396,
+          162
+        ],
+        [
+          398,
+          393
+        ]
+      ],
+      "raw_name": "transformer",
+      "xyxy": [
+        236,
+        162,
+        424,
+        393
+      ]
+    },
+    {
+      "conf": 0.918811559677124,
+      "designator": "D1",
+      "idx": 1,
+      "labels": [
+        "+",
+        "-"
+      ],
+      "name": "Diode",
+      "ports": [
+        [
+          660,
+          110
+        ],
+        [
+          723,
+          110
+        ]
+      ],
+      "raw_name": "diode",
+      "xyxy": [
+        660,
+        72,
+        723,
+        149
+      ]
+    },
+    {
+      "conf": 0.9130259156227112,
+      "designator": "C1",
+      "idx": 2,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Capacitor",
+      "ports": [
+        [
+          956,
+          242
+        ],
+        [
+          951,
+          301
+        ]
+      ],
+      "raw_name": "capacitor.unpolarized",
+      "xyxy": [
+        894,
+        242,
+        1006,
+        301
+      ]
+    },
+    {
+      "conf": 0.862709105014801,
+      "designator": "T1",
+      "idx": 3,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          55,
+          529
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        33,
+        507,
+        77,
+        551
+      ]
+    },
+    {
+      "conf": 0.8602108955383301,
+      "designator": "R1",
+      "idx": 4,
+      "labels": [
+        "1",
+        "2"
+      ],
+      "name": "Resistor",
+      "ports": [
+        [
+          1166,
+          171
+        ],
+        [
+          1184,
+          277
+        ]
+      ],
+      "raw_name": "resistor",
+      "xyxy": [
+        1126,
+        171,
+        1190,
+        277
+      ]
+    },
+    {
+      "conf": 0.8252697587013245,
+      "designator": "T2",
+      "idx": 5,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          66,
+          116
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        45,
+        95,
+        87,
+        137
+      ]
+    },
+    {
+      "conf": 0.792208731174469,
+      "designator": "T3",
+      "idx": 6,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          1350,
+          89
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        1328,
+        68,
+        1372,
+        110
+      ]
+    },
+    {
+      "conf": 0.6918947696685791,
+      "designator": "T4",
+      "idx": 7,
+      "labels": [
+        "T"
+      ],
+      "name": "Terminal",
+      "ports": [
+        [
+          1411,
+          453
+        ]
+      ],
+      "raw_name": "terminal",
+      "xyxy": [
+        1388,
+        431,
+        1435,
+        476
+      ]
+    }
+  ],
+  "height": 621,
+  "image": "C34_D2_P1.jpg",
+  "width": 1600
+}
