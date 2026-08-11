@@ -160,6 +160,7 @@ def test_wiring_reliability_configs_keep_candidate_changes_independent_and_llm_f
     assert configs["strict_fallback"]["use_strict_p2j"] is True
     assert configs["outward_trace"]["use_outward_skeleton_trace"] is True
     assert configs["strict_jj"]["use_strict_jj"] is True
+    assert configs["strict_jj"]["use_outward_port_anchors"] is False
     assert configs["directional_gap_bridge"]["use_directional_gap_bridge"] is True
     assert configs["outward_port_anchors"]["use_outward_port_anchors"] is True
     assert configs["crossing_semantics"]["use_crossing_semantics"] is True

@@ -98,7 +98,7 @@ def test_publication_selected_defaults_match_best_full50_configuration():
     assert unified_pipeline.DEFAULT_CONFIG["use_strict_jj"] is True
     assert unified_pipeline.DEFAULT_CONFIG["use_crossing_semantics"] is False
     assert unified_pipeline.DEFAULT_CONFIG["use_directional_gap_bridge"] is False
-    assert unified_pipeline.DEFAULT_CONFIG["use_outward_port_anchors"] is False
+    assert unified_pipeline.DEFAULT_CONFIG["use_outward_port_anchors"] is True
 
 
 def test_pipeline_exposes_strict_jj_feature_flags():

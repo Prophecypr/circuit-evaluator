@@ -57,7 +57,7 @@ DEFAULT_CONFIG = {
     "use_wiring_trace": True,
     "use_strict_p2j": True,
     "use_outward_skeleton_trace": True,
-    "use_outward_port_anchors": False,
+    "use_outward_port_anchors": True,
     "use_directional_gap_bridge": False,
     "use_strict_jj": True,
     "use_crossing_semantics": False,

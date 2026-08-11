@@ -64,6 +64,7 @@ def build_wiring_reliability_configs():
         "use_terminal_components": False,
         "use_strict_p2j": False,
         "use_outward_skeleton_trace": False,
+        "use_outward_port_anchors": False,
         "use_strict_jj": False,
         "use_crossing_semantics": False,
     }
