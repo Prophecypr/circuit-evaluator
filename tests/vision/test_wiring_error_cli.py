@@ -4,6 +4,8 @@ from pathlib import Path
 import pytest
 
 from src.vision.wiring_error_cli import (
+    _select_render_error_rows,
+    build_parser,
     prepare_output,
     reconcile_counts,
     run_analysis,
@@ -265,3 +267,61 @@ def test_resume_rejects_matching_provenance_with_incomplete_artifacts(tmp_path):
             worst_count=1,
             resume=True,
         )
+
+
+def test_cli_defaults_to_sealed_safe_local_analysis():
+    args = build_parser().parse_args([])
+
+    assert args.run_dir == Path(
+        "results/wiring_reliability_full_20260810_merged"
+    )
+    assert args.benchmark_dir == Path("benchmark")
+    assert args.output_dir == Path("results/wiring_error_attribution_20260811")
+    assert args.expected_count == 50
+    assert args.expected_tp == 305
+    assert args.expected_fp == 537
+    assert args.expected_fn == 1002
+
+
+def test_render_selection_hides_cascade_clique_and_deduplicates_fn_categories():
+    rows = [
+        {
+            "error_type": "FP",
+            "category": "cascade_fp",
+            "is_root": False,
+            "gt_network_a": "N1",
+            "port_a": "A.1",
+            "port_b": "B.1",
+        },
+        {
+            "error_type": "FP",
+            "category": "wrong_junction_merge",
+            "is_root": True,
+            "gt_network_a": "N1",
+            "port_a": "A.1",
+            "port_b": "C.1",
+        },
+        {
+            "error_type": "FN",
+            "category": "skeleton_break",
+            "is_root": True,
+            "gt_network_a": "N2",
+            "port_a": "D.1",
+            "port_b": "E.1",
+        },
+        {
+            "error_type": "FN",
+            "category": "skeleton_break",
+            "is_root": True,
+            "gt_network_a": "N2",
+            "port_a": "D.1",
+            "port_b": "F.1",
+        },
+    ]
+
+    selected = _select_render_error_rows(rows)
+
+    assert [(row["error_type"], row["category"], row["port_b"]) for row in selected] == [
+        ("FN", "skeleton_break", "E.1"),
+        ("FP", "wrong_junction_merge", "C.1"),
+    ]

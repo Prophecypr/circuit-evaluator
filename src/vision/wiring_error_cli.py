@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 from collections import Counter, defaultdict
 import csv
 from dataclasses import dataclass
@@ -409,6 +410,31 @@ def _write_csv(path: Path, rows, fields):
     _atomic_text(path, buffer.getvalue(), encoding="utf-8-sig")
 
 
+def _select_render_error_rows(error_rows):
+    """Keep root FP and one representative FN per GT network/category."""
+    selected = []
+    seen_fn = set()
+    for row in sorted(
+        error_rows,
+        key=lambda item: (
+            item["error_type"],
+            item["category"],
+            item.get("gt_network_a", ""),
+            item["port_a"],
+            item["port_b"],
+        ),
+    ):
+        if row["error_type"] == "FP":
+            if row["is_root"]:
+                selected.append(row)
+            continue
+        key = (row.get("gt_network_a", ""), row["category"])
+        if key not in seen_fn:
+            seen_fn.add(key)
+            selected.append(row)
+    return tuple(selected)
+
+
 def _render_diagnostic(analysis, output_path: Path):
     import cv2
 
@@ -430,7 +456,7 @@ def _render_diagnostic(analysis, output_path: Path):
 
     for edge in sorted(inventory.tp_edges):
         draw_edge(edge, colors["TP"], 2)
-    for row in analysis["error_rows"]:
+    for row in _select_render_error_rows(analysis["error_rows"]):
         edge = (row["port_a"], row["port_b"])
         first, second = draw_edge(edge, colors[row["error_type"]], 2)
         if row["is_root"] and first is not None and second is not None:
@@ -451,6 +477,24 @@ def _render_diagnostic(analysis, output_path: Path):
         y = 24 + index * 24
         cv2.line(image, (12, y), (42, y), color, 3)
         cv2.putText(image, label, (50, y + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1, cv2.LINE_AA)
+    error_counts = Counter(row["error_type"] for row in analysis["error_rows"])
+    cascade_count = sum(
+        row["category"] == "cascade_fp" for row in analysis["error_rows"]
+    )
+    summary = (
+        f"metric errors: FP={error_counts['FP']} FN={error_counts['FN']} "
+        f"cascade_FP={cascade_count}"
+    )
+    cv2.putText(
+        image,
+        summary,
+        (12, 24 + len(legend) * 24),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.5,
+        (40, 40, 40),
+        1,
+        cv2.LINE_AA,
+    )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     success, encoded = cv2.imencode(output_path.suffix or ".jpg", image)
     if not success:
@@ -627,3 +671,58 @@ def run_analysis(
         json.dumps(metadata, ensure_ascii=False, indent=2),
     )
     return output
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Attribute cached strict-jj wiring FP/FN root causes"
+    )
+    parser.add_argument(
+        "--run-dir",
+        type=Path,
+        default=Path("results/wiring_reliability_full_20260810_merged"),
+    )
+    parser.add_argument("--benchmark-dir", type=Path, default=Path("benchmark"))
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("results/wiring_error_attribution_20260811"),
+    )
+    parser.add_argument("--expected-count", type=int, default=50)
+    parser.add_argument("--expected-tp", type=int, default=305)
+    parser.add_argument("--expected-fp", type=int, default=537)
+    parser.add_argument("--expected-fn", type=int, default=1002)
+    parser.add_argument("--worst-count", type=int, default=10)
+    parser.add_argument("--resume", action="store_true")
+    return parser
+
+
+def main(argv=None):
+    args = build_parser().parse_args(argv)
+    expected_counts = {
+        "tp": args.expected_tp,
+        "fp": args.expected_fp,
+        "fn": args.expected_fn,
+    }
+    output = run_analysis(
+        args.run_dir,
+        args.benchmark_dir,
+        args.output_dir,
+        expected_count=args.expected_count,
+        expected_counts=expected_counts,
+        worst_count=args.worst_count,
+        resume=args.resume,
+    )
+    metadata = _read_json(output / "run_metadata.json")
+    actual = metadata["actual_counts"]
+    print(f"images={metadata['image_count']} failures=0")
+    print(
+        f"TP={actual['tp']} FP={actual['fp']} FN={actual['fn']} reconciled=true"
+    )
+    print("LLM=false OCR=false final42=false")
+    print(f"output={output.resolve()}")
+    return output
+
+
+if __name__ == "__main__":
+    main()
