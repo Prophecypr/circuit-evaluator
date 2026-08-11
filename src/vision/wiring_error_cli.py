@@ -86,8 +86,9 @@ def validate_inputs(
     run_dir: str | Path,
     benchmark_dir: str | Path = "benchmark",
     expected_count: int = 50,
+    config_name: str = "strict_jj",
 ) -> tuple[dict, tuple[AnalysisCase, ...]]:
-    """Validate a complete strict-jj cached run and join every file by stem."""
+    """Validate one complete cached config and join every file by stem."""
     run_dir = Path(run_dir)
     benchmark_dir = Path(benchmark_dir)
     metadata_path = run_dir / "run_metadata.json"
@@ -100,31 +101,28 @@ def validate_inputs(
         raise RuntimeError(f"expected {expected_count} images, found {image_count}")
     if metadata.get("failure_count") != 0:
         raise RuntimeError("input run contains failures")
-    strict_config = metadata.get("configs", {}).get("strict_jj")
-    if not isinstance(strict_config, dict):
-        raise RuntimeError("input run has no strict_jj configuration")
-    if strict_config.get("skip_llm") is not True:
-        raise RuntimeError("strict_jj must set skip_llm=true")
-    if strict_config.get("skip_ocr") is not True:
-        raise RuntimeError("strict_jj must set skip_ocr=true")
-    if strict_config.get("use_strict_jj") is not True:
-        raise RuntimeError("strict_jj must set use_strict_jj=true")
+    selected_config = metadata.get("configs", {}).get(config_name)
+    if not isinstance(selected_config, dict):
+        raise RuntimeError(f"input run has no {config_name} configuration")
+    if selected_config.get("skip_llm") is not True:
+        raise RuntimeError(f"{config_name} must set skip_llm=true")
+    if selected_config.get("skip_ocr") is not True:
+        raise RuntimeError(f"{config_name} must set skip_ocr=true")
+    if selected_config.get("use_strict_jj") is not True:
+        raise RuntimeError(f"{config_name} must set use_strict_jj=true")
     if metadata.get("final_42_image_test_used") is not False:
         raise RuntimeError("sealed final 42-image test set was used")
 
-    prediction_dir = run_dir / "predictions" / "strict_jj"
-    trace_dir = run_dir / "wiring_traces_strict_jj"
+    prediction_dir = run_dir / "predictions" / config_name
+    trace_dir = run_dir / f"wiring_traces_{config_name}"
     gt_dir = benchmark_dir / "result"
     prediction_stems = _stems(prediction_dir.glob("*.json"))
     trace_stems = _stems(trace_dir.glob("*.json"))
     gt_stems = _stems(gt_dir.glob("*_gt.txt"), "_gt")
     if len(prediction_stems) != expected_count:
         raise RuntimeError(
-            f"expected {expected_count} strict_jj predictions, found {len(prediction_stems)}"
+            f"expected {expected_count} {config_name} predictions, found {len(prediction_stems)}"
         )
-    missing_traces = sorted(prediction_stems - trace_stems)
-    if missing_traces:
-        raise FileNotFoundError(f"missing trace for {missing_traces[0]}")
     extra_traces = sorted(trace_stems - prediction_stems)
     if extra_traces:
         raise RuntimeError(f"trace stems do not match predictions: {extra_traces}")
@@ -135,6 +133,17 @@ def validate_inputs(
 
     cases = []
     for stem in sorted(prediction_stems):
+        prediction_path = _require_file(
+            prediction_dir / f"{stem}.json", "prediction", stem
+        )
+        separate_trace_path = trace_dir / f"{stem}.json"
+        if separate_trace_path.is_file():
+            trace_path = separate_trace_path
+        else:
+            prediction_payload = _read_json(prediction_path)
+            if not isinstance(prediction_payload.get("wiring_trace"), dict):
+                raise FileNotFoundError(f"missing trace for {stem}")
+            trace_path = prediction_path
         fixed_path = benchmark_dir / "fixed" / f"{stem}.json"
         detection_path = (
             fixed_path
@@ -147,10 +156,8 @@ def validate_inputs(
                 image_path=_one_image(benchmark_dir, stem),
                 gt_path=_require_file(gt_dir / f"{stem}_gt.txt", "GT", stem),
                 detection_path=_require_file(detection_path, "detection", stem),
-                prediction_path=_require_file(
-                    prediction_dir / f"{stem}.json", "prediction", stem
-                ),
-                trace_path=_require_file(trace_dir / f"{stem}.json", "trace", stem),
+                prediction_path=prediction_path,
+                trace_path=trace_path,
             )
         )
     return metadata, tuple(cases)
@@ -334,6 +341,8 @@ def _detection_port_points(detections):
 def _analyze_case(case: AnalysisCase):
     prediction = _read_json(case.prediction_path)
     trace = _read_json(case.trace_path)
+    if case.trace_path == case.prediction_path:
+        trace = trace["wiring_trace"]
     detections = _read_json(case.detection_path).get("components", [])
     gt_groups = _parse_gt(case.gt_path)
     inventory = build_edge_inventory(prediction, gt_groups, detections)
@@ -570,11 +579,17 @@ def run_analysis(
     expected_counts=None,
     worst_count=10,
     resume=False,
+    config_name="strict_jj",
 ):
-    """Analyze cached strict-jj errors and write a fully reconciled report."""
+    """Analyze cached wiring errors and write a fully reconciled report."""
     expected_counts = expected_counts or {"tp": 305, "fp": 537, "fn": 1002}
     run_dir = Path(run_dir)
-    _, cases = validate_inputs(run_dir, benchmark_dir, expected_count)
+    _, cases = validate_inputs(
+        run_dir,
+        benchmark_dir,
+        expected_count,
+        config_name=config_name,
+    )
     provenance = _provenance(run_dir, run_dir / "run_metadata.json", cases)
     output = Path(output_dir)
     if resume and output.is_dir() and any(output.iterdir()):
@@ -657,6 +672,7 @@ def run_analysis(
     metadata = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "git_revision": _git_revision(),
+        "config_name": config_name,
         "image_count": len(cases),
         "expected_counts": expected_counts,
         "actual_counts": actual_counts,
@@ -675,7 +691,7 @@ def run_analysis(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Attribute cached strict-jj wiring FP/FN root causes"
+        description="Attribute cached wiring FP/FN root causes"
     )
     parser.add_argument(
         "--run-dir",
@@ -683,6 +699,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("results/wiring_reliability_full_20260810_merged"),
     )
     parser.add_argument("--benchmark-dir", type=Path, default=Path("benchmark"))
+    parser.add_argument("--config", default="strict_jj")
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -712,6 +729,7 @@ def main(argv=None):
         expected_counts=expected_counts,
         worst_count=args.worst_count,
         resume=args.resume,
+        config_name=args.config,
     )
     metadata = _read_json(output / "run_metadata.json")
     actual = metadata["actual_counts"]

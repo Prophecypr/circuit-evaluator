@@ -175,6 +175,36 @@ def test_validate_inputs_rejects_missing_trace(tmp_path):
         validate_inputs(run_dir, benchmark_dir, expected_count=1)
 
 
+def test_validate_inputs_accepts_named_config_with_embedded_trace(tmp_path):
+    run_dir, benchmark_dir, stem = _seed_valid_inputs(tmp_path)
+    metadata_path = run_dir / "run_metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["configs"]["candidate"] = {
+        "skip_llm": True,
+        "skip_ocr": True,
+        "use_strict_jj": True,
+    }
+    metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+    prediction_dir = run_dir / "predictions" / "candidate"
+    prediction_dir.mkdir()
+    prediction_path = prediction_dir / f"{stem}.json"
+    prediction_path.write_text(json.dumps({
+        "components": [],
+        "raw_groups": [],
+        "wiring_trace": {"events": [], "summary": {}},
+    }), encoding="utf-8")
+
+    _, cases = validate_inputs(
+        run_dir,
+        benchmark_dir,
+        expected_count=1,
+        config_name="candidate",
+    )
+
+    assert cases[0].prediction_path == prediction_path
+    assert cases[0].trace_path == prediction_path
+
+
 def test_validate_inputs_rejects_duplicate_image_stem(tmp_path):
     run_dir, benchmark_dir, stem = _seed_valid_inputs(tmp_path)
     (benchmark_dir / f"{stem}.png").write_bytes(b"duplicate")
@@ -281,6 +311,7 @@ def test_cli_defaults_to_sealed_safe_local_analysis():
     assert args.expected_tp == 305
     assert args.expected_fp == 537
     assert args.expected_fn == 1002
+    assert args.config == "strict_jj"
 
 
 def test_render_selection_hides_cascade_clique_and_deduplicates_fn_categories():
