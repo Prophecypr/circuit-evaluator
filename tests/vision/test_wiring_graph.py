@@ -208,6 +208,86 @@ def test_trace_port_to_anchor_returns_none_when_port_has_no_skeleton():
     assert result is None
 
 
+def test_trace_port_to_anchor_gap_bridge_accepts_one_short_collinear_gap():
+    skeleton = np.zeros((21, 41), dtype=np.uint8)
+    skeleton[10, 5:16] = 255
+    skeleton[10, 19:36] = 255
+
+    result = trace_port_to_anchor(
+        skeleton=skeleton,
+        port=(5, 10),
+        component_center=(0, 10),
+        anchors=[("J1", (35, 10))],
+        search_radius=2,
+        anchor_radius=1,
+        max_steps=100,
+        gap_bridge=4,
+    )
+
+    assert result["anchor_id"] == "J1"
+    assert result["reason"] == "directional_gap_bridge"
+    assert result["gap_bridges"] == 1
+    assert result["max_gap"] == 4.0
+
+
+def test_trace_port_to_anchor_gap_bridge_rejects_gap_above_limit():
+    skeleton = np.zeros((21, 41), dtype=np.uint8)
+    skeleton[10, 5:16] = 255
+    skeleton[10, 21:36] = 255
+
+    result = trace_port_to_anchor(
+        skeleton=skeleton,
+        port=(5, 10),
+        component_center=(0, 10),
+        anchors=[("J1", (35, 10))],
+        search_radius=2,
+        anchor_radius=1,
+        max_steps=100,
+        gap_bridge=4,
+    )
+
+    assert result is None
+
+
+def test_trace_port_to_anchor_gap_bridge_rejects_sideways_segment():
+    skeleton = np.zeros((21, 41), dtype=np.uint8)
+    skeleton[10, 5:16] = 255
+    skeleton[7:14, 19] = 255
+
+    result = trace_port_to_anchor(
+        skeleton=skeleton,
+        port=(5, 10),
+        component_center=(0, 10),
+        anchors=[("J1", (19, 7))],
+        search_radius=2,
+        anchor_radius=1,
+        max_steps=100,
+        gap_bridge=4,
+    )
+
+    assert result is None
+
+
+def test_trace_port_to_anchor_gap_bridge_rejects_second_gap():
+    skeleton = np.zeros((21, 41), dtype=np.uint8)
+    skeleton[10, 5:13] = 255
+    skeleton[10, 16:23] = 255
+    skeleton[10, 26:36] = 255
+
+    result = trace_port_to_anchor(
+        skeleton=skeleton,
+        port=(5, 10),
+        component_center=(0, 10),
+        anchors=[("J1", (35, 10))],
+        search_radius=2,
+        anchor_radius=1,
+        max_steps=100,
+        gap_bridge=4,
+    )
+
+    assert result is None
+
+
 def test_strict_jj_accepts_continuous_aligned_wire():
     skeleton = np.zeros((31, 41), dtype=np.uint8)
     skeleton[15, 5:36] = 255

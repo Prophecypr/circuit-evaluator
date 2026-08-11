@@ -187,8 +187,16 @@ def trace_port_to_anchor(
     search_radius: int,
     anchor_radius: int,
     max_steps: int,
+    gap_bridge: int = 0,
+    min_bridge_cosine: float = 0.85,
+    max_gap_bridges: int = 1,
 ) -> dict[str, Any] | None:
-    """Follow skeleton pixels outward and stop at the first reachable anchor."""
+    """Follow skeleton pixels outward and stop at the first reachable anchor.
+
+    An optional bridge may cross one short blank gap, but only from a real
+    skeleton dead end to a locally collinear continuation in the port-outward
+    direction. The input skeleton is never modified.
+    """
     height, width = skeleton.shape[:2]
     px, py = map(int, port)
     cx, cy = map(int, component_center)
@@ -218,10 +226,42 @@ def trace_port_to_anchor(
         return None
     _, start_x, start_y = min(starts)
 
-    queue = deque([(start_x, start_y, 0)])
-    visited = {(start_x, start_y)}
+    def cosine(first: tuple[float, float], second: tuple[float, float]) -> float:
+        first_norm = math.hypot(*first)
+        second_norm = math.hypot(*second)
+        if first_norm == 0 or second_norm == 0:
+            return -1.0
+        return (
+            first[0] * second[0] + first[1] * second[1]
+        ) / (first_norm * second_norm)
+
+    def skeleton_neighbors(x: int, y: int) -> list[tuple[int, int]]:
+        neighbors = []
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                if dx == 0 and dy == 0:
+                    continue
+                nx, ny = x + dx, y + dy
+                if (
+                    0 <= nx < width
+                    and 0 <= ny < height
+                    and skeleton[ny, nx] > 0
+                    and projection(nx, ny) >= -1.0
+                ):
+                    neighbors.append((nx, ny))
+        return neighbors
+
+    queue = deque([(
+        start_x,
+        start_y,
+        0,
+        0,
+        ((start_x, start_y),),
+        (),
+    )])
+    visited = {(start_x, start_y, 0)}
     while queue:
-        x, y, depth = queue.popleft()
+        x, y, depth, bridge_count, history, bridge_gaps = queue.popleft()
         reached = [
             (math.hypot(x - ax, y - ay), anchor_id, (ax, ay))
             for anchor_id, (ax, ay) in forward_anchors
@@ -232,25 +272,96 @@ def trace_port_to_anchor(
             return {
                 "anchor_id": anchor_id,
                 "anchor": anchor,
-                "reason": "continuous_skeleton_path",
+                "reason": (
+                    "directional_gap_bridge"
+                    if bridge_count
+                    else "continuous_skeleton_path"
+                ),
                 "path_length": depth,
-                "visited_pixels": len(visited),
+                "visited_pixels": len({(vx, vy) for vx, vy, _ in visited}),
+                "gap_bridges": bridge_count,
+                "max_gap": max(bridge_gaps, default=0.0),
             }
         if depth >= max_steps:
             continue
-        for dy in (-1, 0, 1):
-            for dx in (-1, 0, 1):
-                if dx == 0 and dy == 0:
+        neighbors = skeleton_neighbors(x, y)
+        regular_neighbors = [
+            (nx, ny)
+            for nx, ny in neighbors
+            if (nx, ny, bridge_count) not in visited
+        ]
+        for nx, ny in regular_neighbors:
+            visited.add((nx, ny, bridge_count))
+            next_history = (history + ((nx, ny),))[-5:]
+            queue.append((
+                nx,
+                ny,
+                depth + 1,
+                bridge_count,
+                next_history,
+                bridge_gaps,
+            ))
+
+        if gap_bridge <= 0 or bridge_count >= max_gap_bridges:
+            continue
+
+        recent_points = set(history[:-1])
+        physical_continuations = [
+            point for point in neighbors if point not in recent_points
+        ]
+        if physical_continuations:
+            continue
+
+        tangent_origin = history[0]
+        incoming = (x - tangent_origin[0], y - tangent_origin[1])
+        if math.hypot(*incoming) < 1.5:
+            incoming = outward
+
+        bridge_candidates = []
+        for gy in range(max(0, y - gap_bridge), min(height, y + gap_bridge + 1)):
+            for gx in range(max(0, x - gap_bridge), min(width, x + gap_bridge + 1)):
+                gap_vector = (gx - x, gy - y)
+                gap_distance = math.hypot(*gap_vector)
+                if not (math.sqrt(2.0) < gap_distance <= gap_bridge):
                     continue
-                nx, ny = x + dx, y + dy
-                if not (0 <= nx < width and 0 <= ny < height):
+                if skeleton[gy, gx] <= 0:
                     continue
-                if (nx, ny) in visited or skeleton[ny, nx] <= 0:
+                if (gx, gy, bridge_count + 1) in visited:
                     continue
-                if projection(nx, ny) < -1.0:
+                if projection(gx, gy) <= projection(x, y) + 0.5:
                     continue
-                visited.add((nx, ny))
-                queue.append((nx, ny, depth + 1))
+                direction_cosine = cosine(incoming, gap_vector)
+                if direction_cosine < min_bridge_cosine:
+                    continue
+
+                target_neighbors = skeleton_neighbors(gx, gy)
+                if len(target_neighbors) > 2:
+                    continue
+                forward_continuations = [
+                    (nx, ny)
+                    for nx, ny in target_neighbors
+                    if cosine(gap_vector, (nx - gx, ny - gy)) >= min_bridge_cosine
+                ]
+                if not forward_continuations:
+                    continue
+                bridge_candidates.append((
+                    gap_distance,
+                    -direction_cosine,
+                    gx,
+                    gy,
+                ))
+
+        if bridge_candidates:
+            gap_distance, _, gx, gy = min(bridge_candidates)
+            visited.add((gx, gy, bridge_count + 1))
+            queue.append((
+                gx,
+                gy,
+                depth + int(math.ceil(gap_distance)),
+                bridge_count + 1,
+                ((x, y), (gx, gy)),
+                bridge_gaps + (float(gap_distance),),
+            ))
     return None
 
 
